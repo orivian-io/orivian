@@ -25,6 +25,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <div className="bg-yellow-500 text-black text-center text-sm font-medium py-2 px-4">
+          🚧 Orivian is under active construction. Content, accounts, and features may change or reset without notice. 🚧
+        </div>
         <Navbar />
         {children}
       </body>
