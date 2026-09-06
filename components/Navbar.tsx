@@ -20,8 +20,9 @@ export default function Navbar() {
 
   return (
     <nav className="flex items-center justify-between px-6 py-4 border-b border-brand-muted/20">
-      <Link href="/" className="text-xl font-bold tracking-wide text-brand-primary">
-        ORIVIAN
+      <Link href="/" className="flex items-center gap-2">
+        <img src="/logo.svg" alt="Orivian" className="h-8 w-auto" />
+        <span className="text-xl font-bold tracking-wide text-brand-primary">ORIVIAN</span>
       </Link>
       <div className="flex items-center gap-6 text-sm">
         <Link href="/courses" className="hover:text-brand-primary transition">
