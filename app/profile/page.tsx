@@ -89,6 +89,10 @@ export default function ProfilePage() {
       <h1 className="text-3xl font-bold mb-2">
         {user?.user_metadata?.full_name || user?.email}
       </h1>
+      <p className="text-brand-secondary text-sm mb-1">{user?.email}</p>
+      <p className="text-brand-secondary text-sm mb-6">
+        Member since {user?.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
+      </p>
       <p className="text-brand-secondary mb-10">
         {completed.length} completed · {inProgress.length} in progress
       </p>
