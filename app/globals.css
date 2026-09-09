@@ -1,16 +1,28 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-bg: #000000;
+  --color-brand-bg: #0A0C0F;
+  --color-brand-surface: #14171B;
+  --color-brand-surface-raised: #1C2025;
   --color-brand-primary: #C19955;
   --color-brand-primary-dark: #A77C35;
   --color-brand-primary-light: #E4C473;
   --color-brand-secondary: #8F949B;
   --color-brand-text: #F2F3F4;
   --color-brand-muted: #626971;
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-inter);
 }
 
 body {
-  background: var(--color-brand-bg);
+  background:
+    radial-gradient(ellipse 900px 420px at 50% -10%, rgba(193, 153, 85, 0.10), transparent 60%),
+    var(--color-brand-bg);
   color: var(--color-brand-text);
+  font-family: var(--font-sans), sans-serif;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display), serif;
+  letter-spacing: -0.01em;
 }

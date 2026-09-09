@@ -20,12 +20,21 @@ type CourseStats = {
   avgCompletion: number
 }
 
+type CourseRequest = {
+  id: string
+  requested_title: string
+  notes: string | null
+  created_at: string
+  user_id: string | null
+}
+
 export default function AdminPage() {
   const [authorized, setAuthorized] = useState(false)
   const [loading, setLoading] = useState(true)
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [courseStats, setCourseStats] = useState<CourseStats[]>([])
   const [totalEnrollments, setTotalEnrollments] = useState(0)
+  const [requests, setRequests] = useState<CourseRequest[]>([])
   const router = useRouter()
 
   useEffect(() => {
@@ -79,6 +88,14 @@ export default function AdminPage() {
       }
 
       setCourseStats(stats)
+
+      const { data: requestsData } = await supabase
+        .from('course_requests')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      setRequests(requestsData || [])
+
       setLoading(false)
     }
 
@@ -121,6 +138,29 @@ export default function AdminPage() {
               />
             </div>
             <p className="text-xs text-brand-secondary mt-1">{c.avgCompletion}% avg. completion</p>
+          </div>
+        ))}
+      </div>
+
+      <h2 className="text-xl font-semibold mb-4">
+        Course Requests {requests.length > 0 && `(${requests.length})`}
+      </h2>
+      {requests.length === 0 && (
+        <p className="text-brand-secondary text-sm mb-12">No requests yet.</p>
+      )}
+      <div className="space-y-3 mb-12">
+        {requests.map((r) => (
+          <div key={r.id} className="border border-brand-muted/30 rounded-lg p-4">
+            <div className="flex justify-between items-start mb-1">
+              <h3 className="font-medium">{r.requested_title}</h3>
+              <span className="text-xs text-brand-secondary whitespace-nowrap ml-4">
+                {new Date(r.created_at).toLocaleDateString()}
+              </span>
+            </div>
+            {r.notes && <p className="text-sm text-brand-secondary mb-1">{r.notes}</p>}
+            <p className="text-xs text-brand-secondary">
+              {r.user_id ? 'Submitted by registered user' : 'Submitted anonymously'}
+            </p>
           </div>
         ))}
       </div>

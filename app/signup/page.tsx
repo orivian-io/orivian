@@ -30,53 +30,78 @@ export default function SignupPage() {
     }
   }
 
+  const handleGoogleSignIn = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/dashboard`,
+      },
+    })
+  }
+
   if (success) {
     return (
       <main className="max-w-sm mx-auto py-16 px-4">
-        <h1 className="text-2xl font-bold mb-4">Check your email</h1>
-        <p className="text-gray-600">
-          We sent a confirmation link to {email}. Click it to activate your account.
-        </p>
+        <div className="rounded-xl bg-brand-surface p-8">
+          <h1 className="text-2xl font-medium mb-4">Check your email</h1>
+          <p className="text-brand-secondary text-sm">
+            We sent a confirmation link to {email}. Click it to activate your account.
+          </p>
+        </div>
       </main>
     )
   }
 
   return (
     <main className="max-w-sm mx-auto py-16 px-4">
-      <h1 className="text-2xl font-bold mb-6">Sign up</h1>
-      <form onSubmit={handleSignup} className="space-y-4">
-        <input
-          type="text"
-          placeholder="Full name"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          className="w-full border rounded p-2"
-          required
-        />
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full border rounded p-2"
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full border rounded p-2"
-          required
-        />
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button type="submit" className="w-full bg-black text-white rounded p-2">
-          Sign up
+      <div className="rounded-xl bg-brand-surface p-8">
+        <h1 className="text-2xl font-medium mb-6">Sign up</h1>
+
+        <button
+          onClick={handleGoogleSignIn}
+          className="w-full border border-brand-muted/40 rounded-md p-2 mb-4 flex items-center justify-center gap-2 text-sm hover:border-brand-primary transition"
+        >
+          Continue with Google
         </button>
-      </form>
-      <p className="text-sm text-gray-600 mt-4">
-        Already have an account? <Link href="/login" className="underline">Log in</Link>
-      </p>
+        <div className="text-center text-xs text-brand-secondary mb-4">or</div>
+
+        <form onSubmit={handleSignup} className="space-y-3">
+          <input
+            type="text"
+            placeholder="Full name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            className="w-full border border-brand-muted/40 rounded-md p-2 bg-brand-surface-raised text-sm"
+            required
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full border border-brand-muted/40 rounded-md p-2 bg-brand-surface-raised text-sm"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full border border-brand-muted/40 rounded-md p-2 bg-brand-surface-raised text-sm"
+            required
+          />
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          <button
+            type="submit"
+            className="w-full bg-brand-primary text-black rounded-md p-2 font-medium hover:bg-brand-primary-light transition"
+          >
+            Sign up
+          </button>
+        </form>
+        <p className="text-sm text-brand-secondary mt-4">
+          Already have an account? <Link href="/login" className="text-brand-primary hover:underline">Log in</Link>
+        </p>
+      </div>
     </main>
   )
 }

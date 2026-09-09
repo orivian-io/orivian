@@ -10,6 +10,10 @@ type Course = {
   slug: string
   title: string
   description: string
+  difficulty: string | null
+  provider: string | null
+  avg_training_time: string | null
+  why_it_matters: string | null
 }
 
 type Lesson = {
@@ -19,6 +23,12 @@ type Lesson = {
   order_index: number
 }
 
+type Resource = {
+  id: string
+  title: string
+  url: string
+}
+
 export default function CoursePage() {
   const params = useParams()
   const slug = params.slug as string
@@ -26,6 +36,7 @@ export default function CoursePage() {
   const [user, setUser] = useState<User | null>(null)
   const [course, setCourse] = useState<Course | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
+  const [resources, setResources] = useState<Resource[]>([])
   const [enrolled, setEnrolled] = useState(false)
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -54,6 +65,14 @@ export default function CoursePage() {
         .order('order_index')
 
       setLessons(lessonsData || [])
+
+      const { data: resourcesData } = await supabase
+        .from('course_resources')
+        .select('*')
+        .eq('course_id', courseData.id)
+        .order('order_index')
+
+      setResources(resourcesData || [])
 
       if (user) {
         const { data: enrollment } = await supabase
@@ -116,10 +135,39 @@ export default function CoursePage() {
   if (loading) return null
   if (!course) return <main className="max-w-3xl mx-auto py-12 px-4">Course not found.</main>
 
+  const percent = lessons.length > 0
+    ? Math.round((completedIds.size / lessons.length) * 100)
+    : 0
+
   return (
-    <main className="max-w-3xl mx-auto py-12 px-4">
-      <h1 className="text-3xl font-bold">{course.title}</h1>
-      <p className="text-brand-secondary mt-2 mb-6">{course.description}</p>
+    <main className="max-w-3xl mx-auto py-16 px-4">
+      <h1 className="text-4xl font-medium mb-3">{course.title}</h1>
+      <p className="text-brand-secondary text-lg mb-6">{course.description}</p>
+
+      <div className="flex flex-wrap gap-2 mb-8">
+        {course.difficulty && (
+          <span className="text-xs border border-brand-muted/40 rounded-full px-3 py-1">
+            {course.difficulty}
+          </span>
+        )}
+        {course.provider && (
+          <span className="text-xs border border-brand-muted/40 rounded-full px-3 py-1">
+            {course.provider}
+          </span>
+        )}
+        {course.avg_training_time && (
+          <span className="text-xs border border-brand-muted/40 rounded-full px-3 py-1">
+            {course.avg_training_time}
+          </span>
+        )}
+      </div>
+
+      {course.why_it_matters && (
+        <div className="rounded-xl bg-brand-surface p-6 mb-10">
+          <h2 className="text-sm text-brand-secondary mb-2">Why professionals take this</h2>
+          <p className="text-brand-text leading-relaxed">{course.why_it_matters}</p>
+        </div>
+      )}
 
       {!user && (
         <p className="text-sm text-brand-secondary mb-6">
@@ -130,22 +178,30 @@ export default function CoursePage() {
       {user && !enrolled && (
         <button
           onClick={handleEnroll}
-          className="bg-brand-primary text-black px-6 py-2 rounded-md font-medium mb-8"
+          className="bg-brand-primary text-black px-6 py-2.5 rounded-md font-medium mb-10 hover:bg-brand-primary-light transition"
         >
           Enroll in this course
         </button>
       )}
 
       {user && enrolled && (
-        <p className="text-sm text-brand-primary mb-6">You're enrolled in this course.</p>
+        <div className="flex items-center gap-3 mb-10">
+          <div className="flex-1 h-1.5 bg-brand-muted/20 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-brand-primary rounded-full transition-all"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          <span className="text-sm text-brand-secondary whitespace-nowrap">{percent}% complete</span>
+        </div>
       )}
 
-      <h2 className="text-xl font-semibold mb-4">Lessons</h2>
-      <div className="space-y-3">
+      <h2 className="text-xl font-medium mb-4">Lessons</h2>
+      <div className="space-y-1 mb-12">
         {lessons.map((lesson) => (
           <div
             key={lesson.id}
-            className="border border-brand-muted/30 rounded-lg p-4 flex items-center justify-between"
+            className="rounded-xl bg-brand-surface p-4 flex items-center justify-between"
           >
             <h3 className="font-medium">{lesson.title}</h3>
             {enrolled && (
@@ -163,6 +219,25 @@ export default function CoursePage() {
           </div>
         ))}
       </div>
+
+      {resources.length > 0 && (
+        <div>
+          <h2 className="text-xl font-medium mb-4">Resources & References</h2>
+          <div className="space-y-1">
+            {resources.map((r) => (
+              <a
+                key={r.id}
+                href={r.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 text-sm"
+              >
+                {r.title} <span className="text-brand-secondary">↗</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </main>
   )
 }

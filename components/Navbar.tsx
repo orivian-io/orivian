@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
@@ -18,20 +20,33 @@ export default function Navbar() {
     return () => listener.subscription.unsubscribe()
   }, [])
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
   return (
     <nav className="flex items-center justify-between px-6 py-4 border-b border-brand-muted/20">
       <Link href="/" className="flex items-center gap-2">
         <img src="/logo.svg" alt="Orivian" className="h-8 w-auto" />
-        <span className="text-xl font-bold tracking-wide text-brand-primary">ORIVIAN</span>
+        <span className="font-display text-xl font-medium tracking-tight text-brand-primary">Orivian</span>
       </Link>
       <div className="flex items-center gap-6 text-sm">
         <Link href="/courses" className="hover:text-brand-primary transition">
           Courses
         </Link>
         {user ? (
-          <Link href="/profile" className="hover:text-brand-primary transition">
-            Profile
-          </Link>
+          <>
+            <Link href="/profile" className="hover:text-brand-primary transition">
+              Profile
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="text-brand-secondary hover:text-brand-primary transition"
+            >
+              Log out
+            </button>
+          </>
         ) : (
           <>
             <Link href="/login" className="hover:text-brand-primary transition">
