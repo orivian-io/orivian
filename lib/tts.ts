@@ -6,21 +6,33 @@ export type ContentBlock =
   | { type: 'list'; style: 'bullet' | 'numbered'; items: string[] }
   | { type: 'callout'; variant: 'info' | 'warning' | 'tip'; text: string }
   | { type: 'key_term'; term: string; definition: string }
+  | { type: 'group'; heading?: string; blocks: ContentBlock[] }
+
+// Text content can contain lightweight **bold** markdown for on-screen
+// emphasis. Strip it before handing text to the speech synthesizer so it
+// doesn't read the asterisks aloud.
+function stripBold(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, '$1')
+}
 
 // Converts a structured lesson content block into plain text for the
 // browser's built-in voice to read aloud.
 export function blockToSpeechText(block: ContentBlock): string {
   switch (block.type) {
     case 'heading':
-      return block.text
+      return stripBold(block.text)
     case 'paragraph':
-      return block.text
+      return stripBold(block.text)
     case 'list':
-      return block.items.join('. ')
+      return block.items.map(stripBold).join('. ')
     case 'callout':
-      return block.text
+      return stripBold(block.text)
     case 'key_term':
-      return `${block.term}: ${block.definition}`
+      return `${block.term}: ${stripBold(block.definition)}`
+    case 'group':
+      return [block.heading, ...block.blocks.map(blockToSpeechText)]
+        .filter(Boolean)
+        .join('. ')
     default:
       return ''
   }

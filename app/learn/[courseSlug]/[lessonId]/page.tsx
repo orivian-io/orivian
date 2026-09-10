@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -200,7 +200,7 @@ export default function LessonPlayerPage() {
 
   return (
     <div className="fixed inset-0 z-50 bg-brand-bg overflow-y-auto">
-      <div className="max-w-xl mx-auto min-h-full flex flex-col px-5 py-6">
+      <div className="max-w-4xl mx-auto min-h-full flex flex-col px-5 sm:px-8 py-6">
         <div className="flex items-center justify-between mb-6">
           <Link
             href={`/courses/${lesson.course?.slug || courseSlug}`}
@@ -226,7 +226,7 @@ export default function LessonPlayerPage() {
               ))}
             </div>
 
-            <div className="flex-1 flex flex-col justify-center py-8">
+            <div className="flex-1 flex flex-col justify-start pt-4 sm:pt-10 pb-8">
               <ContentBlockView block={currentBlock} />
             </div>
 
@@ -382,33 +382,70 @@ export default function LessonPlayerPage() {
   )
 }
 
-function ContentBlockView({ block }: { block: ContentBlock }) {
+// Renders lightweight **bold** markdown within lesson text as emphasized
+// spans, so key terms can be called out inline without a whole new block.
+function renderInline(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={i} className="font-semibold text-brand-primary">
+          {part.slice(2, -2)}
+        </strong>
+      )
+    }
+    return <Fragment key={i}>{part}</Fragment>
+  })
+}
+
+function ContentBlockView({ block, nested = false }: { block: ContentBlock; nested?: boolean }) {
   switch (block.type) {
     case 'heading':
-      return <h1 className="text-3xl font-display font-medium mb-2">{block.text}</h1>
+      return (
+        <h1 className={nested ? 'text-xl font-display font-medium mb-2' : 'text-3xl sm:text-4xl font-display font-medium mb-2'}>
+          {renderInline(block.text)}
+        </h1>
+      )
     case 'paragraph':
-      return <p className="text-lg leading-relaxed text-brand-text">{block.text}</p>
+      return (
+        <p className={nested ? 'text-base sm:text-lg leading-relaxed text-brand-text' : 'text-lg sm:text-xl leading-relaxed text-brand-text'}>
+          {renderInline(block.text)}
+        </p>
+      )
     case 'list':
       return block.style === 'numbered' ? (
-        <ol className="list-decimal list-inside space-y-2 text-brand-text">
-          {block.items.map((item, i) => <li key={i}>{item}</li>)}
+        <ol className="list-decimal list-inside space-y-2 text-base sm:text-lg text-brand-text">
+          {block.items.map((item, i) => <li key={i}>{renderInline(item)}</li>)}
         </ol>
       ) : (
-        <ul className="list-disc list-inside space-y-2 text-brand-text">
-          {block.items.map((item, i) => <li key={i}>{item}</li>)}
+        <ul className="list-disc list-inside space-y-2 text-base sm:text-lg text-brand-text">
+          {block.items.map((item, i) => <li key={i}>{renderInline(item)}</li>)}
         </ul>
       )
     case 'callout':
       return (
-        <div className="rounded-xl bg-brand-primary/10 border border-brand-primary/30 p-4 text-sm text-brand-text">
-          {block.text}
+        <div className="rounded-xl bg-brand-primary/10 border border-brand-primary/30 p-4 sm:p-5 text-sm sm:text-base text-brand-text">
+          {renderInline(block.text)}
         </div>
       )
     case 'key_term':
       return (
-        <div className="rounded-xl bg-brand-surface p-5">
-          <p className="text-brand-primary font-medium mb-1">{block.term}</p>
-          <p className="text-brand-text">{block.definition}</p>
+        <div className="rounded-xl bg-brand-surface p-5 sm:p-6">
+          <p className="text-brand-primary font-medium mb-1 text-lg">{block.term}</p>
+          <p className="text-brand-text text-base sm:text-lg leading-relaxed">{renderInline(block.definition)}</p>
+        </div>
+      )
+    case 'group':
+      return (
+        <div className="space-y-5">
+          {block.heading && (
+            <h2 className="text-sm font-medium uppercase tracking-wide text-brand-secondary">
+              {block.heading}
+            </h2>
+          )}
+          {block.blocks.map((child, i) => (
+            <ContentBlockView key={i} block={child} nested />
+          ))}
         </div>
       )
     default:
