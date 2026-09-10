@@ -7,7 +7,7 @@ export type ContentBlock =
   | { type: 'callout'; variant: 'info' | 'warning' | 'tip'; text: string }
   | { type: 'key_term'; term: string; definition: string }
   | { type: 'group'; heading?: string; blocks: ContentBlock[] }
-  | { type: 'exam_context'; text: string }
+  | { type: 'title'; text: string; overview: string; examContext: string }
 
 // Text content can contain lightweight **bold** markdown for on-screen
 // emphasis. Strip it before handing text to the speech synthesizer so it
@@ -34,8 +34,12 @@ export function blockToSpeechText(block: ContentBlock): string {
       return [block.heading, ...block.blocks.map(blockToSpeechText)]
         .filter(Boolean)
         .join('. ')
-    case 'exam_context':
-      return `How this shows up on the exam: ${stripBold(block.text)}`
+    case 'title':
+      return [
+        stripBold(block.text),
+        stripBold(block.overview),
+        `How this shows up on the exam: ${stripBold(block.examContext)}`,
+      ].join('. ')
     default:
       return ''
   }
