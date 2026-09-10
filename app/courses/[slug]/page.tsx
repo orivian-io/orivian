@@ -75,6 +75,21 @@ export default function CoursePage() {
   const [startedIds, setStartedIds] = useState<Set<string>>(new Set())
   const [bestScoreByLesson, setBestScoreByLesson] = useState<Map<string, number>>(new Map())
   const [loading, setLoading] = useState(true)
+  // Empty set = every domain starts collapsed; expanding one adds its
+  // section id here.
+  const [openSectionIds, setOpenSectionIds] = useState<Set<string>>(new Set())
+
+  const toggleSection = (sectionId: string) => {
+    setOpenSectionIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(sectionId)) {
+        next.delete(sectionId)
+      } else {
+        next.add(sectionId)
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -284,9 +299,17 @@ export default function CoursePage() {
             0
           )
 
+          const isOpen = openSectionIds.has(section.id)
+          const completedInSection = sectionLessons.filter((l) => completedIds.has(l.id)).length
+
           return (
             <div key={section.id}>
-              <div className="flex items-start gap-4 mb-4">
+              <button
+                type="button"
+                onClick={() => toggleSection(section.id)}
+                aria-expanded={isOpen}
+                className="w-full flex items-start gap-4 mb-4 text-left group"
+              >
                 <div className="shrink-0 h-11 w-11 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
                   <DomainIcon slug={section.slug} className="w-6 h-6" />
                 </div>
@@ -296,6 +319,7 @@ export default function CoursePage() {
                     {sectionMinutes > 0 && (
                       <span className="text-xs text-brand-secondary whitespace-nowrap">
                         {formatDuration(sectionMinutes)} · {sectionLessons.length} lesson{sectionLessons.length === 1 ? '' : 's'}
+                        {completedInSection > 0 ? ` · ${completedInSection} done` : ''}
                       </span>
                     )}
                   </div>
@@ -303,8 +327,16 @@ export default function CoursePage() {
                     <p className="text-sm text-brand-secondary mt-1">{renderInline(section.description)}</p>
                   )}
                 </div>
-              </div>
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  className={`shrink-0 w-5 h-5 mt-3 text-brand-secondary transition-transform group-hover:text-brand-text ${isOpen ? 'rotate-180' : ''}`}
+                >
+                  <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
 
+              {isOpen && (
               <div className="space-y-1">
                 {sectionLessons.map((lesson) => {
                   const isComplete = completedIds.has(lesson.id)
@@ -362,6 +394,7 @@ export default function CoursePage() {
                   )
                 })}
               </div>
+              )}
             </div>
           )
         })}
