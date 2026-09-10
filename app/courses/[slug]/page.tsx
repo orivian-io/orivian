@@ -304,18 +304,18 @@ export default function CoursePage() {
 
           return (
             <div key={section.id}>
-              <button
+                            <button
                 type="button"
                 onClick={() => toggleSection(section.id)}
                 aria-expanded={isOpen}
-                className="w-full flex items-start gap-4 mb-4 text-left group"
+                className="w-full flex items-start gap-4 mb-4 text-left group cursor-pointer rounded-xl -mx-3 px-3 py-2 hover:bg-brand-surface active:bg-brand-surface-raised transition-colors"
               >
                 <div className="shrink-0 h-11 w-11 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
                   <DomainIcon slug={section.slug} className="w-6 h-6" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <h2 className="text-xl font-medium">{section.title}</h2>
+                    <h2 className="text-xl font-medium group-hover:text-brand-primary transition-colors">{section.title}</h2>
                     {sectionMinutes > 0 && (
                       <span className="text-xs text-brand-secondary whitespace-nowrap">
                         {formatDuration(sectionMinutes)} · {sectionLessons.length} lesson{sectionLessons.length === 1 ? '' : 's'}
@@ -330,7 +330,7 @@ export default function CoursePage() {
                 <svg
                   viewBox="0 0 20 20"
                   fill="none"
-                  className={`shrink-0 w-5 h-5 mt-3 text-brand-secondary transition-transform group-hover:text-brand-text ${isOpen ? 'rotate-180' : ''}`}
+                  className={`shrink-0 w-5 h-5 mt-3 text-brand-secondary transition-transform group-hover:text-brand-primary ${isOpen ? 'rotate-180' : ''}`}
                 >
                   <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
