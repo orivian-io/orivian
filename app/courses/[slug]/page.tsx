@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { DomainIcon } from '@/lib/domain-icons'
+import { renderInline } from '@/lib/inline-format'
 import type { User } from '@supabase/supabase-js'
 
 type Course = {
@@ -220,7 +221,7 @@ export default function CoursePage() {
   return (
     <main className="max-w-4xl mx-auto py-16 px-4 sm:px-6">
       <h1 className="text-4xl font-medium mb-3">{course.title}</h1>
-      <p className="text-brand-secondary text-lg mb-6">{course.description}</p>
+      <p className="text-brand-secondary text-lg mb-6">{renderInline(course.description)}</p>
 
       <div className="flex flex-wrap gap-2 mb-8">
         {course.difficulty && (
@@ -243,7 +244,7 @@ export default function CoursePage() {
       {course.why_it_matters && (
         <div className="rounded-xl bg-brand-surface p-6 mb-10">
           <h2 className="text-sm text-brand-secondary mb-2">Why professionals take this</h2>
-          <p className="text-brand-text leading-relaxed">{course.why_it_matters}</p>
+          <p className="text-brand-text leading-relaxed">{renderInline(course.why_it_matters)}</p>
         </div>
       )}
 
@@ -299,7 +300,7 @@ export default function CoursePage() {
                     )}
                   </div>
                   {section.description && (
-                    <p className="text-sm text-brand-secondary mt-1">{section.description}</p>
+                    <p className="text-sm text-brand-secondary mt-1">{renderInline(section.description)}</p>
                   )}
                 </div>
               </div>
@@ -331,13 +332,7 @@ export default function CoursePage() {
                           )}
                         </div>
                         {lesson.summary && (
-                          <p className="text-sm text-brand-text/80 mt-1 max-w-xl">{lesson.summary}</p>
-                        )}
-                        {lesson.exam_frequency && (
-                          <p className="text-xs text-brand-secondary mt-1 max-w-xl">
-                            <span className="text-brand-primary/80">On the exam: </span>
-                            {lesson.exam_frequency}
-                          </p>
+                          <p className="text-sm text-brand-text/80 mt-1 max-w-xl">{renderInline(lesson.summary)}</p>
                         )}
                         {isStarted && typeof bestScore === 'number' && (
                           <p className="text-xs text-brand-secondary mt-1">

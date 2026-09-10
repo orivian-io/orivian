@@ -1,12 +1,13 @@
 'use client'
 
-import { Fragment, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useStudyTimer } from '@/lib/use-study-timer'
 import { blockToSpeechText, speak, stopSpeaking, isSpeechSupported, type ContentBlock } from '@/lib/tts'
 import { DomainIcon } from '@/lib/domain-icons'
+import { renderInline } from '@/lib/inline-format'
 
 type Lesson = {
   id: string
@@ -382,22 +383,6 @@ export default function LessonPlayerPage() {
       </div>
     </div>
   )
-}
-
-// Renders lightweight **bold** markdown within lesson text as emphasized
-// spans, so key terms can be called out inline without a whole new block.
-function renderInline(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g)
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return (
-        <strong key={i} className="font-semibold text-brand-primary">
-          {part.slice(2, -2)}
-        </strong>
-      )
-    }
-    return <Fragment key={i}>{part}</Fragment>
-  })
 }
 
 function ContentBlockView({ block, nested = false }: { block: ContentBlock; nested?: boolean }) {
