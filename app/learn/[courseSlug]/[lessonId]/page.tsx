@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useStudyTimer } from '@/lib/use-study-timer'
 import { blockToSpeechText, speak, stopSpeaking, isSpeechSupported, type ContentBlock } from '@/lib/tts'
+import { DomainIcon } from '@/lib/domain-icons'
 
 type Lesson = {
   id: string
@@ -209,7 +210,8 @@ export default function LessonPlayerPage() {
             ✕ Exit
           </Link>
           {lesson.section?.title && (
-            <span className="text-xs text-brand-secondary uppercase tracking-wide">
+            <span className="flex items-center gap-2 text-xs text-brand-secondary uppercase tracking-wide">
+              <DomainIcon slug={lesson.section.slug} className="w-4 h-4 text-brand-primary/70" />
               {lesson.section.title}
             </span>
           )}

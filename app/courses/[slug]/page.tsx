@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { DomainIcon } from '@/lib/domain-icons'
 import type { User } from '@supabase/supabase-js'
 
 type Course = {
@@ -17,11 +18,23 @@ type Course = {
   why_it_matters: string | null
 }
 
+type Section = {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  order_index: number
+}
+
 type Lesson = {
   id: string
   title: string
   content: string
   order_index: number
+  section_id: string | null
+  estimated_minutes: number | null
+  summary: string | null
+  exam_frequency: string | null
 }
 
 type Resource = {
@@ -30,13 +43,31 @@ type Resource = {
   url: string
 }
 
+// High-balled on purpose: 2 minutes per mini-exam question, so the
+// estimate leans generous rather than under-promising someone's study time.
+const MINUTES_PER_QUESTION = 2
+
+function lessonMinutes(lesson: Lesson, questionCount: number): number {
+  return (lesson.estimated_minutes || 0) + questionCount * MINUTES_PER_QUESTION
+}
+
+function formatDuration(totalMinutes: number): string {
+  if (totalMinutes <= 0) return '—'
+  if (totalMinutes < 60) return `~${totalMinutes} min`
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return minutes === 0 ? `~${hours}h` : `~${hours}h ${minutes}m`
+}
+
 export default function CoursePage() {
   const params = useParams()
   const slug = params.slug as string
 
   const [user, setUser] = useState<User | null>(null)
   const [course, setCourse] = useState<Course | null>(null)
+  const [sections, setSections] = useState<Section[]>([])
   const [lessons, setLessons] = useState<Lesson[]>([])
+  const [questionCounts, setQuestionCounts] = useState<Map<string, number>>(new Map())
   const [resources, setResources] = useState<Resource[]>([])
   const [enrolled, setEnrolled] = useState(false)
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set())
@@ -61,13 +92,29 @@ export default function CoursePage() {
       }
       setCourse(courseData)
 
+      const { data: sectionsData } = await supabase
+        .from('sections')
+        .select('id, slug, title, description, order_index')
+        .eq('course_id', courseData.id)
+        .order('order_index')
+
+      setSections(sectionsData || [])
+
       const { data: lessonsData } = await supabase
         .from('lessons')
-        .select('*')
+        .select('id, title, content, order_index, section_id, estimated_minutes, summary, exam_frequency')
         .eq('course_id', courseData.id)
         .order('order_index')
 
       setLessons(lessonsData || [])
+
+      // Question counts only - never question content/answers - via a
+      // security-definer function, since the `questions` table itself has
+      // no client-read policy at all.
+      const { data: counts } = await supabase.rpc('lesson_question_counts', {
+        p_course_id: courseData.id,
+      })
+      setQuestionCounts(new Map((counts || []).map((c: { lesson_id: string; question_count: number }) => [c.lesson_id, c.question_count])))
 
       const { data: resourcesData } = await supabase
         .from('course_resources')
@@ -153,8 +200,25 @@ export default function CoursePage() {
     ? Math.round((completedIds.size / lessons.length) * 100)
     : 0
 
+  const courseTotalMinutes = lessons.reduce(
+    (sum, l) => sum + lessonMinutes(l, questionCounts.get(l.id) || 0),
+    0
+  )
+
+  const lessonsBySection = new Map<string, Lesson[]>()
+  const unsectioned: Lesson[] = []
+  for (const lesson of lessons) {
+    if (!lesson.section_id) {
+      unsectioned.push(lesson)
+      continue
+    }
+    const list = lessonsBySection.get(lesson.section_id) || []
+    list.push(lesson)
+    lessonsBySection.set(lesson.section_id, list)
+  }
+
   return (
-    <main className="max-w-3xl mx-auto py-16 px-4">
+    <main className="max-w-4xl mx-auto py-16 px-4 sm:px-6">
       <h1 className="text-4xl font-medium mb-3">{course.title}</h1>
       <p className="text-brand-secondary text-lg mb-6">{course.description}</p>
 
@@ -169,9 +233,9 @@ export default function CoursePage() {
             {course.provider}
           </span>
         )}
-        {course.avg_training_time && (
+        {courseTotalMinutes > 0 && (
           <span className="text-xs border border-brand-muted/40 rounded-full px-3 py-1">
-            {course.avg_training_time}
+            {formatDuration(courseTotalMinutes)} total
           </span>
         )}
       </div>
@@ -210,49 +274,132 @@ export default function CoursePage() {
         </div>
       )}
 
-      <h2 className="text-xl font-medium mb-4">Lessons</h2>
-      <div className="space-y-1 mb-12">
-        {lessons.map((lesson) => {
-          const isComplete = completedIds.has(lesson.id)
-          const isStarted = !isComplete && startedIds.has(lesson.id)
-          const bestScore = bestScoreByLesson.get(lesson.id)
+      <div className="space-y-10 mb-12">
+        {sections.map((section) => {
+          const sectionLessons = lessonsBySection.get(section.id) || []
+          if (sectionLessons.length === 0) return null
+          const sectionMinutes = sectionLessons.reduce(
+            (sum, l) => sum + lessonMinutes(l, questionCounts.get(l.id) || 0),
+            0
+          )
 
-          let statusLabel = 'Start lesson →'
-          let statusClass = 'text-sm text-brand-secondary'
-          if (isComplete) {
-            statusLabel = '✓ Completed'
-            statusClass = 'text-sm text-brand-primary'
-          } else if (isStarted) {
-            statusLabel = 'Continue lesson →'
-            statusClass = 'text-sm text-brand-primary/80'
-          }
-
-          const content = enrolled ? (
-            <Link
-              key={lesson.id}
-              href={`/learn/${slug}/${lesson.id}`}
-              className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-center justify-between gap-4"
-            >
-              <div>
-                <h3 className="font-medium">{lesson.title}</h3>
-                {isStarted && typeof bestScore === 'number' && (
-                  <p className="text-xs text-brand-secondary mt-0.5">
-                    Last attempt: {bestScore}% (80% needed to pass)
-                  </p>
-                )}
+          return (
+            <div key={section.id}>
+              <div className="flex items-start gap-4 mb-4">
+                <div className="shrink-0 h-11 w-11 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
+                  <DomainIcon slug={section.slug} className="w-6 h-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <h2 className="text-xl font-medium">{section.title}</h2>
+                    {sectionMinutes > 0 && (
+                      <span className="text-xs text-brand-secondary whitespace-nowrap">
+                        {formatDuration(sectionMinutes)} · {sectionLessons.length} lesson{sectionLessons.length === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </div>
+                  {section.description && (
+                    <p className="text-sm text-brand-secondary mt-1">{section.description}</p>
+                  )}
+                </div>
               </div>
-              <span className={`${statusClass} shrink-0 whitespace-nowrap`}>{statusLabel}</span>
-            </Link>
-          ) : (
-            <div
-              key={lesson.id}
-              className="rounded-xl bg-brand-surface p-4 flex items-center justify-between"
-            >
-              <h3 className="font-medium">{lesson.title}</h3>
+
+              <div className="space-y-1">
+                {sectionLessons.map((lesson) => {
+                  const isComplete = completedIds.has(lesson.id)
+                  const isStarted = !isComplete && startedIds.has(lesson.id)
+                  const bestScore = bestScoreByLesson.get(lesson.id)
+                  const minutes = lessonMinutes(lesson, questionCounts.get(lesson.id) || 0)
+
+                  let statusLabel = 'Start lesson →'
+                  let statusClass = 'text-sm text-brand-secondary'
+                  if (isComplete) {
+                    statusLabel = '✓ Completed'
+                    statusClass = 'text-sm text-brand-primary'
+                  } else if (isStarted) {
+                    statusLabel = 'Continue lesson →'
+                    statusClass = 'text-sm text-brand-primary/80'
+                  }
+
+                  const inner = (
+                    <>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <h3 className="font-medium">{lesson.title}</h3>
+                          {minutes > 0 && (
+                            <span className="text-xs text-brand-secondary whitespace-nowrap">{formatDuration(minutes)}</span>
+                          )}
+                        </div>
+                        {lesson.summary && (
+                          <p className="text-sm text-brand-text/80 mt-1 max-w-xl">{lesson.summary}</p>
+                        )}
+                        {lesson.exam_frequency && (
+                          <p className="text-xs text-brand-secondary mt-1 max-w-xl">
+                            <span className="text-brand-primary/80">On the exam: </span>
+                            {lesson.exam_frequency}
+                          </p>
+                        )}
+                        {isStarted && typeof bestScore === 'number' && (
+                          <p className="text-xs text-brand-secondary mt-1">
+                            Last attempt: {bestScore}% (80% needed to pass)
+                          </p>
+                        )}
+                      </div>
+                      <span className={`${statusClass} shrink-0 whitespace-nowrap self-start`}>{statusLabel}</span>
+                    </>
+                  )
+
+                  return enrolled ? (
+                    <Link
+                      key={lesson.id}
+                      href={`/learn/${slug}/${lesson.id}`}
+                      className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-start justify-between gap-4"
+                    >
+                      {inner}
+                    </Link>
+                  ) : (
+                    <div
+                      key={lesson.id}
+                      className="rounded-xl bg-brand-surface p-4 flex items-start justify-between gap-4"
+                    >
+                      {inner}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )
-          return content
         })}
+
+        {unsectioned.length > 0 && (
+          <div>
+            <h2 className="text-xl font-medium mb-4">More Lessons</h2>
+            <div className="space-y-1">
+              {unsectioned.map((lesson) => {
+                const isComplete = completedIds.has(lesson.id)
+                return enrolled ? (
+                  <Link
+                    key={lesson.id}
+                    href={`/learn/${slug}/${lesson.id}`}
+                    className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-center justify-between"
+                  >
+                    <h3 className="font-medium">{lesson.title}</h3>
+                    <span className={isComplete ? 'text-sm text-brand-primary' : 'text-sm text-brand-secondary'}>
+                      {isComplete ? '✓ Completed' : 'Start lesson →'}
+                    </span>
+                  </Link>
+                ) : (
+                  <div
+                    key={lesson.id}
+                    className="rounded-xl bg-brand-surface p-4 flex items-center justify-between"
+                  >
+                    <h3 className="font-medium">{lesson.title}</h3>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {resources.length > 0 && (
