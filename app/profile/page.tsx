@@ -21,9 +21,20 @@ type ProfileFields = {
   linkedin_url: string
 }
 
+function formatStudyTime(totalSeconds: number): string {
+  const totalMinutes = Math.floor(totalSeconds / 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  if (hours === 0 && minutes === 0) return '0m'
+  if (hours === 0) return `${minutes}m`
+  return `${hours}h ${minutes}m`
+}
+
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null)
   const [courses, setCourses] = useState<CourseProgress[]>([])
+  const [studySeconds, setStudySeconds] = useState(0)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -101,6 +112,11 @@ export default function ProfilePage() {
 
         setCourses(results)
       }
+
+      const { data: totalStudySeconds } = await supabase.rpc('total_study_seconds', {
+        p_user_id: user.id,
+      })
+      setStudySeconds(totalStudySeconds || 0)
 
       setLoading(false)
     }
@@ -228,6 +244,7 @@ export default function ProfilePage() {
         <div className="flex gap-6 text-sm mt-4">
           <span><span className="text-brand-primary font-medium">{completed.length}</span> completed</span>
           <span><span className="text-brand-primary font-medium">{inProgress.length}</span> in progress</span>
+          <span><span className="text-brand-primary font-medium">{formatStudyTime(studySeconds)}</span> studied</span>
         </div>
       </div>
 

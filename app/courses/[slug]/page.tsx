@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 
@@ -107,31 +108,6 @@ export default function CoursePage() {
     setEnrolled(true)
   }
 
-  const toggleComplete = async (lessonId: string) => {
-    if (!user) return
-
-    if (completedIds.has(lessonId)) {
-      await supabase
-        .from('progress')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('lesson_id', lessonId)
-
-      const next = new Set(completedIds)
-      next.delete(lessonId)
-      setCompletedIds(next)
-    } else {
-      await supabase.from('progress').insert({
-        user_id: user.id,
-        lesson_id: lessonId,
-      })
-
-      const next = new Set(completedIds)
-      next.add(lessonId)
-      setCompletedIds(next)
-    }
-  }
-
   if (loading) return null
   if (!course) return <main className="max-w-3xl mx-auto py-12 px-4">Course not found.</main>
 
@@ -198,26 +174,29 @@ export default function CoursePage() {
 
       <h2 className="text-xl font-medium mb-4">Lessons</h2>
       <div className="space-y-1 mb-12">
-        {lessons.map((lesson) => (
-          <div
-            key={lesson.id}
-            className="rounded-xl bg-brand-surface p-4 flex items-center justify-between"
-          >
-            <h3 className="font-medium">{lesson.title}</h3>
-            {enrolled && (
-              <button
-                onClick={() => toggleComplete(lesson.id)}
-                className={
-                  completedIds.has(lesson.id)
-                    ? 'text-sm text-brand-primary'
-                    : 'text-sm text-brand-secondary underline'
-                }
-              >
-                {completedIds.has(lesson.id) ? '✓ Completed' : 'Mark complete'}
-              </button>
-            )}
-          </div>
-        ))}
+        {lessons.map((lesson) => {
+          const isComplete = completedIds.has(lesson.id)
+          const content = enrolled ? (
+            <Link
+              key={lesson.id}
+              href={`/learn/${slug}/${lesson.id}`}
+              className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-center justify-between"
+            >
+              <h3 className="font-medium">{lesson.title}</h3>
+              <span className={isComplete ? 'text-sm text-brand-primary' : 'text-sm text-brand-secondary'}>
+                {isComplete ? '✓ Completed' : 'Start lesson →'}
+              </span>
+            </Link>
+          ) : (
+            <div
+              key={lesson.id}
+              className="rounded-xl bg-brand-surface p-4 flex items-center justify-between"
+            >
+              <h3 className="font-medium">{lesson.title}</h3>
+            </div>
+          )
+          return content
+        })}
       </div>
 
       {resources.length > 0 && (
