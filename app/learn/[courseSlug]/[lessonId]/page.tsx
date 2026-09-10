@@ -437,6 +437,17 @@ function ContentBlockView({ block, nested = false }: { block: ContentBlock; nest
           <p className="text-brand-text text-base sm:text-lg leading-relaxed">{renderInline(block.definition)}</p>
         </div>
       )
+    case 'exam_context':
+      return (
+        <div className="rounded-xl border border-brand-primary/30 bg-brand-surface p-5 sm:p-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-brand-primary mb-2">
+            How this shows up on the exam
+          </p>
+          <p className="text-brand-text text-base sm:text-lg leading-relaxed">
+            {renderInline(block.text)}
+          </p>
+        </div>
+      )
     case 'group':
       return (
         <div className="space-y-5">
