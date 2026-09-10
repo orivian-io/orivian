@@ -40,6 +40,8 @@ export default function CoursePage() {
   const [resources, setResources] = useState<Resource[]>([])
   const [enrolled, setEnrolled] = useState(false)
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set())
+  const [startedIds, setStartedIds] = useState<Set<string>>(new Set())
+  const [bestScoreByLesson, setBestScoreByLesson] = useState<Map<string, number>>(new Map())
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -91,6 +93,42 @@ export default function CoursePage() {
           .eq('user_id', user.id)
 
         setCompletedIds(new Set(progress?.map((p) => p.lesson_id)))
+
+        const lessonIds = (lessonsData || []).map((l) => l.id)
+
+        if (lessonIds.length > 0) {
+          // A lesson counts as "started" if the learner has either logged
+          // study time in it or attempted (and possibly failed) its
+          // mini-exam - either is evidence they've been inside it, even if
+          // they haven't passed yet.
+          const [{ data: studySessions }, { data: attempts }] = await Promise.all([
+            supabase
+              .from('study_sessions')
+              .select('lesson_id')
+              .eq('user_id', user.id)
+              .in('lesson_id', lessonIds),
+            supabase
+              .from('exam_attempts')
+              .select('lesson_id, score_percent')
+              .eq('user_id', user.id)
+              .eq('attempt_type', 'mini_exam')
+              .in('lesson_id', lessonIds),
+          ])
+
+          const started = new Set<string>()
+          studySessions?.forEach((s) => s.lesson_id && started.add(s.lesson_id))
+
+          const bestScores = new Map<string, number>()
+          attempts?.forEach((a) => {
+            if (!a.lesson_id) return
+            started.add(a.lesson_id)
+            const prevBest = bestScores.get(a.lesson_id) ?? -1
+            if (a.score_percent > prevBest) bestScores.set(a.lesson_id, a.score_percent)
+          })
+
+          setStartedIds(started)
+          setBestScoreByLesson(bestScores)
+        }
       }
 
       setLoading(false)
@@ -176,16 +214,34 @@ export default function CoursePage() {
       <div className="space-y-1 mb-12">
         {lessons.map((lesson) => {
           const isComplete = completedIds.has(lesson.id)
+          const isStarted = !isComplete && startedIds.has(lesson.id)
+          const bestScore = bestScoreByLesson.get(lesson.id)
+
+          let statusLabel = 'Start lesson →'
+          let statusClass = 'text-sm text-brand-secondary'
+          if (isComplete) {
+            statusLabel = '✓ Completed'
+            statusClass = 'text-sm text-brand-primary'
+          } else if (isStarted) {
+            statusLabel = 'Continue lesson →'
+            statusClass = 'text-sm text-brand-primary/80'
+          }
+
           const content = enrolled ? (
             <Link
               key={lesson.id}
               href={`/learn/${slug}/${lesson.id}`}
-              className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-center justify-between"
+              className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-center justify-between gap-4"
             >
-              <h3 className="font-medium">{lesson.title}</h3>
-              <span className={isComplete ? 'text-sm text-brand-primary' : 'text-sm text-brand-secondary'}>
-                {isComplete ? '✓ Completed' : 'Start lesson →'}
-              </span>
+              <div>
+                <h3 className="font-medium">{lesson.title}</h3>
+                {isStarted && typeof bestScore === 'number' && (
+                  <p className="text-xs text-brand-secondary mt-0.5">
+                    Last attempt: {bestScore}% (80% needed to pass)
+                  </p>
+                )}
+              </div>
+              <span className={`${statusClass} shrink-0 whitespace-nowrap`}>{statusLabel}</span>
             </Link>
           ) : (
             <div
