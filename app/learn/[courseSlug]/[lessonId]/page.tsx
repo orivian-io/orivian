@@ -13,6 +13,7 @@ type Lesson = {
   id: string
   title: string
   content_blocks: ContentBlock[]
+  lesson_type: string
   section: { title: string; slug: string } | null
   course: { slug: string; title: string } | null
 }
@@ -66,7 +67,7 @@ export default function LessonPlayerPage() {
 
       const { data, error } = await supabase
         .from('lessons')
-        .select('id, title, content_blocks, sections(title, slug), courses(slug, title)')
+        .select('id, title, content_blocks, lesson_type, sections(title, slug), courses(slug, title)')
         .eq('id', lessonId)
         .single()
 
@@ -82,6 +83,7 @@ export default function LessonPlayerPage() {
         id: data.id,
         title: data.title,
         content_blocks: (data.content_blocks as ContentBlock[]) || [],
+        lesson_type: data.lesson_type || 'standard',
         section: section || null,
         course: course || null,
       })
@@ -110,6 +112,23 @@ export default function LessonPlayerPage() {
     }
     setSpeaking(true)
     speak(blockToSpeechText(currentBlock), () => setSpeaking(false))
+  }
+
+  const [completingRecap, setCompletingRecap] = useState(false)
+
+  const completeRecap = async () => {
+    setCompletingRecap(true)
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+
+    await fetch('/api/lessons/recap-complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ lessonId }),
+    })
+
+    router.push(`/courses/${lesson?.course?.slug || courseSlug}`)
   }
 
   const startExam = async () => {
@@ -253,12 +272,22 @@ export default function LessonPlayerPage() {
                   </button>
                 )}
                 {isLastBlock ? (
-                  <button
-                    onClick={startExam}
-                    className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition"
-                  >
-                    Start mini-exam
-                  </button>
+                  lesson.lesson_type === 'recap' ? (
+                    <button
+                      onClick={completeRecap}
+                      disabled={completingRecap}
+                      className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition disabled:opacity-40"
+                    >
+                      {completingRecap ? 'Saving…' : 'Mark as reviewed'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={startExam}
+                      className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition"
+                    >
+                      Start mini-exam
+                    </button>
+                  )
                 ) : (
                   <button
                     onClick={() => setBlockIndex((i) => i + 1)}

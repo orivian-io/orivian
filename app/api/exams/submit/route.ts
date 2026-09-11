@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAuthedUser } from '@/lib/get-authed-user'
 
-// Passing threshold for lesson mini-exams. Adjustable - not discussed with
-// the user yet beyond "must pass to complete a lesson", so this is a
-// reasonable default (stricter than CISSP's own ~70% scaled passing score,
-// since these are short formative checks, not the real exam).
+// Passing threshold for lesson mini-exams AND full-domain checkpoint exams.
+// Adjustable - not discussed with the user yet beyond "must pass to
+// complete a lesson", so this is a reasonable default (stricter than
+// CISSP's own ~70% scaled passing score, since these are formative checks,
+// not the real exam).
 const PASS_THRESHOLD_PERCENT = 80
 
 type SubmittedAnswer = {
@@ -13,8 +14,11 @@ type SubmittedAnswer = {
   selectedChoiceIds: string[]
 }
 
-// Grades a submitted mini-exam attempt server-side, records it, and - if
-// passed - marks the lesson complete. Correct answers never appear in the
+// Grades a submitted mini-exam OR checkpoint attempt server-side and
+// records it. A passed mini-exam additionally marks its lesson complete;
+// a checkpoint attempt is recorded against the section only - checkpoints
+// don't gate lesson completion or factor into section_mastery, they're a
+// capstone assessment layered on top. Correct answers never appear in the
 // request/response until after grading has already happened.
 export async function POST(req: NextRequest) {
   const user = await getAuthedUser(req)
@@ -24,19 +28,29 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null)
   const lessonId = body?.lessonId
+  const sectionId = body?.sectionId
   const answers: SubmittedAnswer[] = body?.answers
+  const isCheckpoint = !!sectionId
 
-  if (!lessonId || typeof lessonId !== 'string' || !Array.isArray(answers) || answers.length === 0) {
-    return NextResponse.json({ error: 'lessonId and answers are required' }, { status: 400 })
+  if ((!lessonId && !sectionId) || !Array.isArray(answers) || answers.length === 0) {
+    return NextResponse.json({ error: 'lessonId or sectionId, and answers, are required' }, { status: 400 })
   }
 
-  const { data: questions, error: qErr } = await supabaseAdmin
-    .from('questions')
-    .select('id, correct_choice_ids, explanation')
-    .eq('lesson_id', lessonId)
+  const { data: questions, error: qErr } = isCheckpoint
+    ? await supabaseAdmin
+        .from('questions')
+        .select('id, correct_choice_ids, explanation')
+        .eq('section_id', sectionId)
+        .is('lesson_id', null)
+    : await supabaseAdmin
+        .from('questions')
+        .select('id, correct_choice_ids, explanation')
+        .eq('lesson_id', lessonId)
 
   if (qErr || !questions || questions.length === 0) {
-    return NextResponse.json({ error: 'No questions found for this lesson' }, { status: 404 })
+    return NextResponse.json({
+      error: isCheckpoint ? 'No checkpoint questions found for this section' : 'No questions found for this lesson',
+    }, { status: 404 })
   }
 
   const correctByQuestion = new Map<string, Set<string>>(
@@ -69,8 +83,9 @@ export async function POST(req: NextRequest) {
     .from('exam_attempts')
     .insert({
       user_id: user.id,
-      lesson_id: lessonId,
-      attempt_type: 'mini_exam',
+      lesson_id: isCheckpoint ? null : lessonId,
+      section_id: isCheckpoint ? sectionId : null,
+      attempt_type: isCheckpoint ? 'section_exam' : 'mini_exam',
       question_count: questionCount,
       score_percent: scorePercent,
       passed,
@@ -86,7 +101,7 @@ export async function POST(req: NextRequest) {
     .from('exam_attempt_answers')
     .insert(gradedAnswers.map((a) => ({ ...a, attempt_id: attempt.id })))
 
-  if (passed) {
+  if (passed && !isCheckpoint) {
     // Mirrors the existing app's delete-then-insert pattern for progress
     // (see toggleComplete in app/courses/[slug]/page.tsx) rather than an
     // upsert, since we can't assume a unique constraint exists yet.

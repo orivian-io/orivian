@@ -36,6 +36,7 @@ type Lesson = {
   estimated_minutes: number | null
   summary: string | null
   exam_frequency: string | null
+  lesson_type: string
 }
 
 type Resource = {
@@ -74,6 +75,9 @@ export default function CoursePage() {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set())
   const [startedIds, setStartedIds] = useState<Set<string>>(new Set())
   const [bestScoreByLesson, setBestScoreByLesson] = useState<Map<string, number>>(new Map())
+  const [checkpointCounts, setCheckpointCounts] = useState<Map<string, number>>(new Map())
+  const [checkpointBestScore, setCheckpointBestScore] = useState<Map<string, number>>(new Map())
+  const [checkpointPassed, setCheckpointPassed] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   // Empty set = every domain starts collapsed; expanding one adds its
   // section id here.
@@ -118,7 +122,7 @@ export default function CoursePage() {
 
       const { data: lessonsData } = await supabase
         .from('lessons')
-        .select('id, title, content, order_index, section_id, estimated_minutes, summary, exam_frequency')
+        .select('id, title, content, order_index, section_id, estimated_minutes, summary, exam_frequency, lesson_type')
         .eq('course_id', courseData.id)
         .order('order_index')
 
@@ -131,6 +135,13 @@ export default function CoursePage() {
         p_course_id: courseData.id,
       })
       setQuestionCounts(new Map((counts || []).map((c: { lesson_id: string; question_count: number }) => [c.lesson_id, c.question_count])))
+
+      // Same pattern, but for full-domain checkpoint question counts,
+      // keyed by section instead of lesson.
+      const { data: checkpointCountsData } = await supabase.rpc('section_checkpoint_question_count', {
+        p_course_id: courseData.id,
+      })
+      setCheckpointCounts(new Map((checkpointCountsData || []).map((c: { section_id: string; question_count: number }) => [c.section_id, c.question_count])))
 
       const { data: resourcesData } = await supabase
         .from('course_resources')
@@ -156,6 +167,27 @@ export default function CoursePage() {
           .eq('user_id', user.id)
 
         setCompletedIds(new Set(progress?.map((p) => p.lesson_id)))
+
+        const sectionIds = (sectionsData || []).map((s) => s.id)
+        if (sectionIds.length > 0) {
+          const { data: checkpointAttempts } = await supabase
+            .from('exam_attempts')
+            .select('section_id, score_percent, passed')
+            .eq('user_id', user.id)
+            .eq('attempt_type', 'section_exam')
+            .in('section_id', sectionIds)
+
+          const cpBest = new Map<string, number>()
+          const cpPassed = new Set<string>()
+          checkpointAttempts?.forEach((a) => {
+            if (!a.section_id) return
+            const prevBest = cpBest.get(a.section_id) ?? -1
+            if (a.score_percent > prevBest) cpBest.set(a.section_id, a.score_percent)
+            if (a.passed) cpPassed.add(a.section_id)
+          })
+          setCheckpointBestScore(cpBest)
+          setCheckpointPassed(cpPassed)
+        }
 
         const lessonIds = (lessonsData || []).map((l) => l.id)
 
@@ -222,8 +254,13 @@ export default function CoursePage() {
   )
 
   const lessonsBySection = new Map<string, Lesson[]>()
+  const recapBySection = new Map<string, Lesson>()
   const unsectioned: Lesson[] = []
   for (const lesson of lessons) {
+    if (lesson.lesson_type === 'recap') {
+      if (lesson.section_id) recapBySection.set(lesson.section_id, lesson)
+      continue
+    }
     if (!lesson.section_id) {
       unsectioned.push(lesson)
       continue
@@ -304,7 +341,7 @@ export default function CoursePage() {
 
           return (
             <div key={section.id}>
-                            <button
+              <button
                 type="button"
                 onClick={() => toggleSection(section.id)}
                 aria-expanded={isOpen}
@@ -393,6 +430,70 @@ export default function CoursePage() {
                     </div>
                   )
                 })}
+
+                {recapBySection.has(section.id) && (() => {
+                  const recap = recapBySection.get(section.id)!
+                  const isReviewed = completedIds.has(recap.id)
+                  return enrolled ? (
+                    <Link
+                      href={`/learn/${slug}/${recap.id}`}
+                      className="rounded-xl border border-dashed border-brand-muted/40 hover:border-brand-primary/50 hover:bg-brand-surface transition p-4 flex items-start justify-between gap-4"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <span className="text-xs uppercase tracking-wide text-brand-primary/80">Domain Recap</span>
+                        </div>
+                        <h3 className="font-medium mt-0.5">{recap.title}</h3>
+                        {recap.summary && (
+                          <p className="text-sm text-brand-text/80 mt-1 max-w-xl">{renderInline(recap.summary)}</p>
+                        )}
+                      </div>
+                      <span className={`${isReviewed ? 'text-brand-primary' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
+                        {isReviewed ? '✓ Reviewed' : 'Review →'}
+                      </span>
+                    </Link>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-brand-muted/40 p-4 flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <span className="text-xs uppercase tracking-wide text-brand-primary/80">Domain Recap</span>
+                        <h3 className="font-medium mt-0.5">{recap.title}</h3>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {(checkpointCounts.get(section.id) || 0) > 0 && (() => {
+                  const passed = checkpointPassed.has(section.id)
+                  const best = checkpointBestScore.get(section.id)
+                  const qCount = checkpointCounts.get(section.id) || 0
+                  return enrolled ? (
+                    <Link
+                      href={`/learn/${slug}/checkpoint/${section.id}`}
+                      className="rounded-xl bg-brand-surface-raised hover:bg-brand-surface transition p-4 flex items-start justify-between gap-4"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <span className="text-xs uppercase tracking-wide text-brand-primary/80">Domain Checkpoint</span>
+                        </div>
+                        <h3 className="font-medium mt-0.5">{section.title}: full-domain exam</h3>
+                        <p className="text-sm text-brand-text/80 mt-1">{qCount} questions · 80% to pass</p>
+                        {typeof best === 'number' && (
+                          <p className="text-xs text-brand-secondary mt-1">Best score: {best}%</p>
+                        )}
+                      </div>
+                      <span className={`${passed ? 'text-brand-primary' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
+                        {passed ? '✓ Passed' : typeof best === 'number' ? 'Try again →' : 'Start →'}
+                      </span>
+                    </Link>
+                  ) : (
+                    <div className="rounded-xl bg-brand-surface-raised p-4 flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <span className="text-xs uppercase tracking-wide text-brand-primary/80">Domain Checkpoint</span>
+                        <h3 className="font-medium mt-0.5">{section.title}: full-domain exam</h3>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
               )}
             </div>
