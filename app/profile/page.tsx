@@ -14,6 +14,11 @@ type CourseProgress = {
   completedLessons: number
 }
 
+type CourseStudyTime = {
+  totalSeconds: number
+  todaySeconds: number
+}
+
 type ProfileFields = {
   job_title: string
   company: string
@@ -35,6 +40,8 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null)
   const [courses, setCourses] = useState<CourseProgress[]>([])
   const [studySeconds, setStudySeconds] = useState(0)
+  const [studySecondsToday, setStudySecondsToday] = useState(0)
+  const [courseStudyTimes, setCourseStudyTimes] = useState<Record<string, CourseStudyTime>>({})
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -86,6 +93,7 @@ export default function ProfilePage() {
         const completedLessonIds = new Set(allProgress?.map((p) => p.lesson_id))
 
         const results: CourseProgress[] = []
+        const studyTimes: Record<string, CourseStudyTime> = {}
 
         for (const enrollment of enrollments) {
           const course = Array.isArray(enrollment.courses)
@@ -108,15 +116,31 @@ export default function ProfilePage() {
             totalLessons,
             completedLessons,
           })
+
+          const { data: breakdown } = await supabase.rpc('course_study_breakdown', {
+            p_user_id: user.id,
+            p_course_id: course.id,
+          })
+          const breakdownRow = Array.isArray(breakdown) ? breakdown[0] : breakdown
+          studyTimes[course.id] = {
+            totalSeconds: breakdownRow?.total_seconds || 0,
+            todaySeconds: breakdownRow?.today_seconds || 0,
+          }
         }
 
         setCourses(results)
+        setCourseStudyTimes(studyTimes)
       }
 
       const { data: totalStudySeconds } = await supabase.rpc('total_study_seconds', {
         p_user_id: user.id,
       })
       setStudySeconds(totalStudySeconds || 0)
+
+      const { data: totalStudySecondsToday } = await supabase.rpc('total_study_seconds_today', {
+        p_user_id: user.id,
+      })
+      setStudySecondsToday(totalStudySecondsToday || 0)
 
       setLoading(false)
     }
@@ -148,6 +172,7 @@ export default function ProfilePage() {
   const completed = courses.filter((c) => c.totalLessons > 0 && c.completedLessons === c.totalLessons)
 
   const hasAnyDetails = fields.job_title || fields.company || fields.bio || fields.linkedin_url
+  const coursesWithStudyTime = courses.filter((c) => (courseStudyTimes[c.course_id]?.totalSeconds || 0) > 0)
 
   return (
     <main className="max-w-3xl mx-auto py-16 px-4">
@@ -246,6 +271,40 @@ export default function ProfilePage() {
           <span><span className="text-brand-primary font-medium">{inProgress.length}</span> in progress</span>
           <span><span className="text-brand-primary font-medium">{formatStudyTime(studySeconds)}</span> studied</span>
         </div>
+      </div>
+
+      <div className="rounded-xl bg-brand-surface p-6 mb-12">
+        <h2 className="text-sm text-brand-secondary mb-4">Study Stats</h2>
+
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="rounded-lg bg-brand-surface-raised p-4">
+            <p className="text-2xl font-medium text-brand-primary">{formatStudyTime(studySecondsToday)}</p>
+            <p className="text-xs text-brand-secondary mt-1">Studied today</p>
+          </div>
+          <div className="rounded-lg bg-brand-surface-raised p-4">
+            <p className="text-2xl font-medium text-brand-primary">{formatStudyTime(studySeconds)}</p>
+            <p className="text-xs text-brand-secondary mt-1">Total studied</p>
+          </div>
+        </div>
+
+        {coursesWithStudyTime.length > 0 ? (
+          <div className="space-y-2">
+            {coursesWithStudyTime.map((c) => {
+              const t = courseStudyTimes[c.course_id]
+              return (
+                <div key={c.course_id} className="flex items-center justify-between text-sm">
+                  <span className="text-brand-text">{c.title}</span>
+                  <span className="text-brand-secondary">
+                    {formatStudyTime(t.totalSeconds)} total
+                    {t.todaySeconds > 0 && <> · {formatStudyTime(t.todaySeconds)} today</>}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-brand-secondary text-sm">No study time recorded yet — open a lesson to get started.</p>
+        )}
       </div>
 
       <h2 className="text-sm text-brand-secondary mb-4">In Progress</h2>

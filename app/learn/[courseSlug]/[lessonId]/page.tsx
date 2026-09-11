@@ -55,10 +55,10 @@ export default function LessonPlayerPage() {
   const [result, setResult] = useState<ExamResult | null>(null)
 
   // Only accrues study time while actually reading content or taking the
-  // exam - not while looking at results. courseSeconds is the learner's
-  // live, server-synced total study time across every lesson in this
-  // course, shown as a running timer in the header.
-  const { courseSeconds } = useStudyTimer(phase === 'content' || phase === 'exam' ? lessonId : null)
+  // exam - not while looking at results. todaySeconds/totalSeconds are
+  // the learner's live, server-synced study time for this course - today
+  // and all-time - shown as running timers in the header.
+  const { todaySeconds, totalSeconds } = useStudyTimer(phase === 'content' || phase === 'exam' ? lessonId : null)
 
   useEffect(() => {
     const load = async () => {
@@ -232,14 +232,23 @@ export default function LessonPlayerPage() {
           >
             ✕ Exit
           </Link>
-          <div className="flex items-center gap-4">
-            {courseSeconds !== null && (
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-end">
+            {todaySeconds !== null && (
               <span
                 className="flex items-center gap-1.5 text-xs text-brand-secondary tabular-nums"
-                title={`Time studying ${lesson.course?.title || 'this course'}`}
+                title={`Time studying ${lesson.course?.title || 'this course'} today`}
               >
                 <span aria-hidden="true">⏱</span>
-                {formatDuration(courseSeconds)}
+                Today {formatDuration(todaySeconds)}
+              </span>
+            )}
+            {totalSeconds !== null && (
+              <span
+                className="flex items-center gap-1.5 text-xs text-brand-secondary tabular-nums"
+                title={`Total time studying ${lesson.course?.title || 'this course'}`}
+              >
+                <span aria-hidden="true">📊</span>
+                Total {formatDuration(totalSeconds)}
               </span>
             )}
             {lesson.section?.title && (

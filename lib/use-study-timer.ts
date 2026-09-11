@@ -12,15 +12,16 @@ const TICK_INTERVAL_MS = 1000
  * than "tab left open in the background." Pass null to pause tracking
  * (e.g. while a results screen is showing, not actively studying).
  *
- * Also returns a live-ticking `courseSeconds` count - the learner's total
- * study time across every lesson in this lesson's course. Each heartbeat
- * response carries the server's authoritative total, which becomes the
- * new baseline; between heartbeats, `courseSeconds` ticks up locally
- * once a second (only while the page is visible) so the on-screen timer
- * reads smoothly rather than jumping every 20s. Because it always snaps
- * back to the server's true total on sync, a backgrounded tab or a
- * missed heartbeat can't inflate the displayed time. `courseSeconds` is
- * null until the first heartbeat resolves.
+ * Also returns two live-ticking counts for this lesson's course:
+ * `todaySeconds` (studied today) and `totalSeconds` (studied all-time).
+ * Each heartbeat response carries the server's authoritative totals,
+ * which become the new baseline; between heartbeats, both tick up
+ * locally once a second (only while the page is visible, and by the
+ * same amount, since they share one clock) so the on-screen timers read
+ * smoothly rather than jumping every 20s. Because they always snap back
+ * to the server's true totals on sync, a backgrounded tab or a missed
+ * heartbeat can't inflate what's displayed. Both are null until the
+ * first heartbeat resolves.
  *
  * A final heartbeat fires on unmount/tab-hide with `keepalive: true` so
  * the last partial interval survives navigation or a closed tab.
@@ -31,14 +32,18 @@ export function useStudyTimer(lessonId: string | null) {
     clientSessionIdRef.current = crypto.randomUUID()
   }
 
-  const baseSecondsRef = useRef<number | null>(null)
+  const baseTotalSecondsRef = useRef<number | null>(null)
+  const baseTodaySecondsRef = useRef<number | null>(null)
   const baseSyncedAtRef = useRef<number>(0)
-  const [courseSeconds, setCourseSeconds] = useState<number | null>(null)
+  const [totalSeconds, setTotalSeconds] = useState<number | null>(null)
+  const [todaySeconds, setTodaySeconds] = useState<number | null>(null)
 
   useEffect(() => {
     // Reset display state for the new lesson/tracking target.
-    baseSecondsRef.current = null
-    setCourseSeconds(null)
+    baseTotalSecondsRef.current = null
+    baseTodaySecondsRef.current = null
+    setTotalSeconds(null)
+    setTodaySeconds(null)
 
     if (!lessonId) return
 
@@ -68,10 +73,13 @@ export function useStudyTimer(lessonId: string | null) {
         // update state on, and reading its body isn't reliable anyway.
         if (!keepalive) {
           const json = await res.json().catch(() => null)
-          if (json && typeof json.courseStudySeconds === 'number') {
-            baseSecondsRef.current = json.courseStudySeconds
+          if (json && typeof json.courseStudySecondsTotal === 'number') {
+            baseTotalSecondsRef.current = json.courseStudySecondsTotal
+            baseTodaySecondsRef.current =
+              typeof json.courseStudySecondsToday === 'number' ? json.courseStudySecondsToday : 0
             baseSyncedAtRef.current = Date.now()
-            setCourseSeconds(json.courseStudySeconds)
+            setTotalSeconds(baseTotalSecondsRef.current)
+            setTodaySeconds(baseTodaySecondsRef.current)
           }
         }
       } catch {
@@ -98,9 +106,10 @@ export function useStudyTimer(lessonId: string | null) {
     const startTicking = () => {
       if (tickIntervalId) return
       tickIntervalId = setInterval(() => {
-        if (baseSecondsRef.current === null) return
-        const elapsed = Math.round((Date.now() - baseSyncedAtRef.current) / 1000)
-        setCourseSeconds(baseSecondsRef.current + Math.max(0, elapsed))
+        if (baseTotalSecondsRef.current === null) return
+        const elapsed = Math.max(0, Math.round((Date.now() - baseSyncedAtRef.current) / 1000))
+        setTotalSeconds(baseTotalSecondsRef.current + elapsed)
+        setTodaySeconds((baseTodaySecondsRef.current ?? 0) + elapsed)
       }, TICK_INTERVAL_MS)
     }
 
@@ -139,5 +148,5 @@ export function useStudyTimer(lessonId: string | null) {
     }
   }, [lessonId])
 
-  return { courseSeconds }
+  return { todaySeconds, totalSeconds }
 }

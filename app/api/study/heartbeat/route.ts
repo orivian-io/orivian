@@ -7,7 +7,9 @@ import { getAuthedUser } from '@/lib/get-authed-user'
 // hours of continuous study once it resumes.
 const MAX_SECONDS_PER_HEARTBEAT = 60
 
-async function getCourseStudySeconds(userId: string, lessonId: string): Promise<number | null> {
+type CourseStudyBreakdown = { total: number; today: number } | null
+
+async function getCourseStudyBreakdown(userId: string, lessonId: string): Promise<CourseStudyBreakdown> {
   const { data: lessonRow } = await supabaseAdmin
     .from('lessons')
     .select('course_id')
@@ -16,12 +18,19 @@ async function getCourseStudySeconds(userId: string, lessonId: string): Promise<
 
   if (!lessonRow?.course_id) return null
 
-  const { data } = await supabaseAdmin.rpc('course_study_seconds', {
+  const { data } = await supabaseAdmin.rpc('course_study_breakdown', {
     p_user_id: userId,
     p_course_id: lessonRow.course_id,
   })
 
-  return typeof data === 'number' ? data : null
+  // A set-returning SQL function comes back as an array of rows.
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row) return null
+
+  return {
+    total: typeof row.total_seconds === 'number' ? row.total_seconds : 0,
+    today: typeof row.today_seconds === 'number' ? row.today_seconds : 0,
+  }
 }
 
 // Called roughly every 20s by the lesson player while it's visible and
@@ -29,10 +38,10 @@ async function getCourseStudySeconds(userId: string, lessonId: string): Promise<
 // fabricate hours by calling this directly, since each call can only
 // ever add up to MAX_SECONDS_PER_HEARTBEAT regardless of what's claimed.
 //
-// Also returns courseStudySeconds - the learner's authoritative total
-// study time across every lesson (and, eventually, checkpoint) in this
-// lesson's course - so the lesson player can show a live, un-fakeable
-// "time studying this course" timer that stays in sync with the server.
+// Also returns courseStudySecondsTotal / courseStudySecondsToday - the
+// learner's authoritative study time across every lesson in this
+// lesson's course, all-time and just for today - so the lesson player
+// can show live, un-fakeable timers that stay in sync with the server.
 export async function POST(req: NextRequest) {
   const user = await getAuthedUser(req)
   if (!user) {
@@ -70,9 +79,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to start study session' }, { status: 500 })
     }
 
+    const breakdown = await getCourseStudyBreakdown(user.id, lessonId)
     return NextResponse.json({
       totalDurationSeconds: 0,
-      courseStudySeconds: await getCourseStudySeconds(user.id, lessonId),
+      courseStudySecondsTotal: breakdown?.total ?? null,
+      courseStudySecondsToday: breakdown?.today ?? null,
     })
   }
 
@@ -91,8 +102,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to update study session' }, { status: 500 })
   }
 
+  const breakdown = await getCourseStudyBreakdown(user.id, lessonId)
   return NextResponse.json({
     totalDurationSeconds: newDuration,
-    courseStudySeconds: await getCourseStudySeconds(user.id, lessonId),
+    courseStudySecondsTotal: breakdown?.total ?? null,
+    courseStudySecondsToday: breakdown?.today ?? null,
   })
 }
