@@ -11,6 +11,16 @@ const base = {
   strokeLinejoin: 'round' as const,
 }
 
+// Domain 0: Getting Started (orientation)
+function CompassIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M15 9l-2 5-5 2 2-5 5-2z" />
+    </svg>
+  )
+}
+
 // Domain 1: Security and Risk Management
 function ShieldIcon(props: IconProps) {
   return (
@@ -101,6 +111,7 @@ function CodeBracketsIcon(props: IconProps) {
 // it's seeded with a matching slug. Domains 2-8 aren't built out yet, but
 // the keys are here now so nothing needs to change here when they are.
 const ICONS_BY_SLUG: Record<string, ComponentType<IconProps>> = {
+  'getting-started': CompassIcon,
   'security-and-risk-management': ShieldIcon,
   'asset-security': VaultIcon,
   'security-architecture-and-engineering': BlueprintIcon,

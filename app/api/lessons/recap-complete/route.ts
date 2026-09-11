@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAuthedUser } from '@/lib/get-authed-user'
 
-// Marks a domain-recap lesson as reviewed. Recap lessons (lessons.lesson_type
-// = 'recap') have no mini-exam, so there's no grading step to gate
-// completion on - reaching the end of the recap's content is enough. This
-// still goes through a server route rather than a client-side insert so we
-// can verify the lesson really is a recap before writing progress,
-// consistent with how every other progress-affecting write in this app
-// goes through the service role key rather than a direct client write.
+// Marks a no-exam lesson as complete: domain recaps (lesson_type = 'recap')
+// and Domain 0 orientation lessons (lesson_type = 'orientation'). Neither
+// has a mini-exam, so there's no grading step to gate completion on -
+// reaching the end of the content is enough. This still goes through a
+// server route rather than a client-side insert so we can verify the
+// lesson really is one of these two non-exam types before writing
+// progress, consistent with how every other progress-affecting write in
+// this app goes through the service role key rather than a direct client
+// write.
 export async function POST(req: NextRequest) {
   const user = await getAuthedUser(req)
   if (!user) {
@@ -31,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (lessonErr || !lesson) {
     return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
   }
-  if (lesson.lesson_type !== 'recap') {
+  if (lesson.lesson_type !== 'recap' && lesson.lesson_type !== 'orientation') {
     return NextResponse.json({ error: 'This lesson requires passing its mini-exam to complete' }, { status: 400 })
   }
 

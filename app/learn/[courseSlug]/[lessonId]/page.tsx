@@ -117,10 +117,13 @@ export default function LessonPlayerPage() {
     speak(blockToSpeechText(currentBlock), () => setSpeaking(false))
   }
 
-  const [completingRecap, setCompletingRecap] = useState(false)
+  // Shared by domain recaps and Domain 0 orientation lessons - both are
+  // no-exam lesson types where reaching the end of the content is enough
+  // to mark them complete (see app/api/lessons/recap-complete/route.ts).
+  const [completingNonExam, setCompletingNonExam] = useState(false)
 
-  const completeRecap = async () => {
-    setCompletingRecap(true)
+  const completeNonExamLesson = async () => {
+    setCompletingNonExam(true)
 
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
@@ -272,7 +275,7 @@ export default function LessonPlayerPage() {
             </div>
 
             <div className="flex-1 flex flex-col justify-start pt-4 sm:pt-10 pb-8">
-              <ContentBlockView block={currentBlock} />
+              <ContentBlockView block={currentBlock} isOrientation={lesson.lesson_type === 'orientation'} />
             </div>
 
             <div className="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-brand-muted/10">
@@ -297,11 +300,19 @@ export default function LessonPlayerPage() {
                 {isLastBlock ? (
                   lesson.lesson_type === 'recap' ? (
                     <button
-                      onClick={completeRecap}
-                      disabled={completingRecap}
+                      onClick={completeNonExamLesson}
+                      disabled={completingNonExam}
                       className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition disabled:opacity-40"
                     >
-                      {completingRecap ? 'Saving…' : 'Mark as reviewed'}
+                      {completingNonExam ? 'Saving…' : 'Mark as reviewed'}
+                    </button>
+                  ) : lesson.lesson_type === 'orientation' ? (
+                    <button
+                      onClick={completeNonExamLesson}
+                      disabled={completingNonExam}
+                      className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition disabled:opacity-40"
+                    >
+                      {completingNonExam ? 'Saving…' : 'Mark as complete'}
                     </button>
                   ) : (
                     <button
@@ -437,7 +448,7 @@ export default function LessonPlayerPage() {
   )
 }
 
-function ContentBlockView({ block, nested = false }: { block: ContentBlock; nested?: boolean }) {
+function ContentBlockView({ block, nested = false, isOrientation = false }: { block: ContentBlock; nested?: boolean; isOrientation?: boolean }) {
   switch (block.type) {
     case 'heading':
       return (
@@ -484,7 +495,7 @@ function ContentBlockView({ block, nested = false }: { block: ContentBlock; nest
           {block.examContext && (
             <div className="rounded-xl border border-brand-primary/30 bg-brand-surface p-5 sm:p-6">
               <p className="text-xs font-medium uppercase tracking-wide text-brand-primary mb-2">
-                How this shows up on the exam
+                {isOrientation ? 'Why this matters' : 'How this shows up on the exam'}
               </p>
               <p className="text-brand-text text-base sm:text-lg leading-relaxed">
                 {renderInline(block.examContext)}
@@ -502,7 +513,7 @@ function ContentBlockView({ block, nested = false }: { block: ContentBlock; nest
             </h2>
           )}
           {block.blocks.map((child, i) => (
-            <ContentBlockView key={i} block={child} nested />
+            <ContentBlockView key={i} block={child} nested isOrientation={isOrientation} />
           ))}
         </div>
       )
