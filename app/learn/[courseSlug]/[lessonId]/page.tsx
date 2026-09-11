@@ -8,6 +8,7 @@ import { useStudyTimer } from '@/lib/use-study-timer'
 import { blockToSpeechText, speak, stopSpeaking, isSpeechSupported, type ContentBlock } from '@/lib/tts'
 import { DomainIcon } from '@/lib/domain-icons'
 import { renderInline } from '@/lib/inline-format'
+import { formatDuration } from '@/lib/format-duration'
 
 type Lesson = {
   id: string
@@ -54,8 +55,10 @@ export default function LessonPlayerPage() {
   const [result, setResult] = useState<ExamResult | null>(null)
 
   // Only accrues study time while actually reading content or taking the
-  // exam - not while looking at results.
-  useStudyTimer(phase === 'content' || phase === 'exam' ? lessonId : null)
+  // exam - not while looking at results. courseSeconds is the learner's
+  // live, server-synced total study time across every lesson in this
+  // course, shown as a running timer in the header.
+  const { courseSeconds } = useStudyTimer(phase === 'content' || phase === 'exam' ? lessonId : null)
 
   useEffect(() => {
     const load = async () => {
@@ -229,12 +232,23 @@ export default function LessonPlayerPage() {
           >
             ✕ Exit
           </Link>
-          {lesson.section?.title && (
-            <span className="flex items-center gap-2 text-xs text-brand-secondary uppercase tracking-wide">
-              <DomainIcon slug={lesson.section.slug} className="w-4 h-4 text-brand-primary/70" />
-              {lesson.section.title}
-            </span>
-          )}
+          <div className="flex items-center gap-4">
+            {courseSeconds !== null && (
+              <span
+                className="flex items-center gap-1.5 text-xs text-brand-secondary tabular-nums"
+                title={`Time studying ${lesson.course?.title || 'this course'}`}
+              >
+                <span aria-hidden="true">⏱</span>
+                {formatDuration(courseSeconds)}
+              </span>
+            )}
+            {lesson.section?.title && (
+              <span className="flex items-center gap-2 text-xs text-brand-secondary uppercase tracking-wide">
+                <DomainIcon slug={lesson.section.slug} className="w-4 h-4 text-brand-primary/70" />
+                {lesson.section.title}
+              </span>
+            )}
+          </div>
         </div>
 
         {phase === 'content' && lesson.content_blocks.length > 0 && currentBlock && (

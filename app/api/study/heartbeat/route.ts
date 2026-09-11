@@ -7,10 +7,32 @@ import { getAuthedUser } from '@/lib/get-authed-user'
 // hours of continuous study once it resumes.
 const MAX_SECONDS_PER_HEARTBEAT = 60
 
+async function getCourseStudySeconds(userId: string, lessonId: string): Promise<number | null> {
+  const { data: lessonRow } = await supabaseAdmin
+    .from('lessons')
+    .select('course_id')
+    .eq('id', lessonId)
+    .maybeSingle()
+
+  if (!lessonRow?.course_id) return null
+
+  const { data } = await supabaseAdmin.rpc('course_study_seconds', {
+    p_user_id: userId,
+    p_course_id: lessonRow.course_id,
+  })
+
+  return typeof data === 'number' ? data : null
+}
+
 // Called roughly every 20s by the lesson player while it's visible and
 // focused. Accumulates real study time server-side - a user can't
 // fabricate hours by calling this directly, since each call can only
 // ever add up to MAX_SECONDS_PER_HEARTBEAT regardless of what's claimed.
+//
+// Also returns courseStudySeconds - the learner's authoritative total
+// study time across every lesson (and, eventually, checkpoint) in this
+// lesson's course - so the lesson player can show a live, un-fakeable
+// "time studying this course" timer that stays in sync with the server.
 export async function POST(req: NextRequest) {
   const user = await getAuthedUser(req)
   if (!user) {
@@ -48,7 +70,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to start study session' }, { status: 500 })
     }
 
-    return NextResponse.json({ totalDurationSeconds: 0 })
+    return NextResponse.json({
+      totalDurationSeconds: 0,
+      courseStudySeconds: await getCourseStudySeconds(user.id, lessonId),
+    })
   }
 
   const rawElapsedSeconds = Math.round(
@@ -66,5 +91,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to update study session' }, { status: 500 })
   }
 
-  return NextResponse.json({ totalDurationSeconds: newDuration })
+  return NextResponse.json({
+    totalDurationSeconds: newDuration,
+    courseStudySeconds: await getCourseStudySeconds(user.id, lessonId),
+  })
 }
