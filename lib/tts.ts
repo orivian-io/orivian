@@ -12,7 +12,8 @@ export type ContentBlock =
 // Text content can contain lightweight **bold** markdown for on-screen
 // emphasis. Strip it before handing text to the speech synthesizer so it
 // doesn't read the asterisks aloud.
-function stripBold(text: string): string {
+function stripBold(text: string | null | undefined): string {
+  if (!text) return ''
   return text.replace(/\*\*(.+?)\*\*/g, '$1')
 }
 

@@ -5,7 +5,8 @@ import { Fragment } from 'react'
 // player so key terms can be called out consistently anywhere content is
 // shown - plain text with no ** markers renders unchanged, so this is safe
 // to wrap around any copy, authored or not.
-export function renderInline(text: string) {
+export function renderInline(text: string | null | undefined) {
+  if (!text) return null
   const parts = text.split(/(\*\*[^*]+\*\*)/g)
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
