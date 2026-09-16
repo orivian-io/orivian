@@ -45,6 +45,16 @@ type Resource = {
   url: string
 }
 
+type FinalExam = {
+  id: string
+  slug: string
+  title: string
+  description: string | null
+  order_index: number
+  time_limit_minutes: number
+  question_count: number
+}
+
 // High-balled on purpose: 2 minutes per mini-exam question, so the
 // estimate leans generous rather than under-promising someone's study time.
 const MINUTES_PER_QUESTION = 2
@@ -78,6 +88,8 @@ export default function CoursePage() {
   const [checkpointCounts, setCheckpointCounts] = useState<Map<string, number>>(new Map())
   const [checkpointBestScore, setCheckpointBestScore] = useState<Map<string, number>>(new Map())
   const [checkpointPassed, setCheckpointPassed] = useState<Set<string>>(new Set())
+  const [finalExams, setFinalExams] = useState<FinalExam[]>([])
+  const [finalExamBest, setFinalExamBest] = useState<Map<string, { scorePercent: number; passed: boolean; withinTimeLimit: boolean }>>(new Map())
   const [loading, setLoading] = useState(true)
   // Empty set = every domain starts collapsed; expanding one adds its
   // section id here.
@@ -143,6 +155,18 @@ export default function CoursePage() {
       })
       setCheckpointCounts(new Map((checkpointCountsData || []).map((c: { section_id: string; question_count: number }) => [c.section_id, c.question_count])))
 
+      // Final Exams: full-length, optional practice tests spanning every
+      // domain. `final_exams` is publicly readable (like `sections`) - no
+      // question content lives on it, so no RPC is needed just to show
+      // the cards.
+      const { data: finalExamsData } = await supabase
+        .from('final_exams')
+        .select('id, slug, title, description, order_index, time_limit_minutes, question_count')
+        .eq('course_id', courseData.id)
+        .order('order_index')
+
+      setFinalExams(finalExamsData || [])
+
       const { data: resourcesData } = await supabase
         .from('course_resources')
         .select('*')
@@ -187,6 +211,30 @@ export default function CoursePage() {
           })
           setCheckpointBestScore(cpBest)
           setCheckpointPassed(cpPassed)
+        }
+
+        const finalExamIds = (finalExamsData || []).map((e) => e.id)
+        if (finalExamIds.length > 0) {
+          const { data: finalExamAttempts } = await supabase
+            .from('exam_attempts')
+            .select('final_exam_id, score_percent, passed, within_time_limit')
+            .eq('user_id', user.id)
+            .eq('attempt_type', 'final_exam')
+            .in('final_exam_id', finalExamIds)
+
+          const feBest = new Map<string, { scorePercent: number; passed: boolean; withinTimeLimit: boolean }>()
+          finalExamAttempts?.forEach((a) => {
+            if (!a.final_exam_id) return
+            const prev = feBest.get(a.final_exam_id)
+            if (!prev || a.score_percent > prev.scorePercent) {
+              feBest.set(a.final_exam_id, {
+                scorePercent: a.score_percent,
+                passed: a.passed,
+                withinTimeLimit: a.within_time_limit,
+              })
+            }
+          })
+          setFinalExamBest(feBest)
         }
 
         const lessonIds = (lessonsData || []).map((l) => l.id)
@@ -530,6 +578,63 @@ export default function CoursePage() {
           </div>
         )}
       </div>
+
+      {finalExams.length > 0 && (
+        <div className="mb-12">
+          <div className="flex items-start gap-4 mb-4">
+            <div className="shrink-0 h-11 w-11 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
+              <DomainIcon slug="final-exams" className="w-6 h-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-medium">Final Exams</h2>
+              <p className="text-sm text-brand-secondary mt-1">
+                Optional, but recommended once you&apos;ve worked through the domains. Full-length practice exams
+                weighted like the real thing, timed the same way (3 hours) - going over doesn&apos;t cut you off,
+                it just shows in your results.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            {finalExams.map((exam) => {
+              const best = finalExamBest.get(exam.id)
+              return enrolled ? (
+                <Link
+                  key={exam.id}
+                  href={`/learn/${slug}/final-exam/${exam.id}`}
+                  className="rounded-xl bg-brand-surface-raised hover:bg-brand-surface transition p-4 flex items-start justify-between gap-4"
+                >
+                  <div className="min-w-0">
+                    <h3 className="font-medium">{exam.title}</h3>
+                    <p className="text-sm text-brand-text/80 mt-1">
+                      {exam.question_count} questions · {formatDuration(exam.time_limit_minutes)} time limit
+                    </p>
+                    {best && (
+                      <p className="text-xs text-brand-secondary mt-1">
+                        Best score: {best.scorePercent}% {best.passed ? '(passing-equivalent)' : ''}
+                        {' · '}
+                        {best.withinTimeLimit ? 'within time limit' : 'over time limit'}
+                      </p>
+                    )}
+                  </div>
+                  <span className={`${best?.passed ? 'text-brand-primary' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
+                    {best ? 'Retake →' : 'Start →'}
+                  </span>
+                </Link>
+              ) : (
+                <div key={exam.id} className="rounded-xl bg-brand-surface-raised p-4 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <h3 className="font-medium">{exam.title}</h3>
+                    <p className="text-sm text-brand-text/80 mt-1">
+                      {exam.question_count} questions · {formatDuration(exam.time_limit_minutes)} time limit
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {resources.length > 0 && (
         <div>

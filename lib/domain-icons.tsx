@@ -107,6 +107,19 @@ function CodeBracketsIcon(props: IconProps) {
   )
 }
 
+// Final Exams (not a CISSP domain - a full-length practice test spanning
+// all of them, keyed by the synthetic slug 'final-exams' rather than a
+// real `sections` row).
+function TimerIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l3 2" />
+      <path d="M10 2h4M12 5V2" />
+    </svg>
+  )
+}
+
 // Keyed by section slug so each CISSP domain gets a consistent icon once
 // it's seeded with a matching slug. Domains 2-8 aren't built out yet, but
 // the keys are here now so nothing needs to change here when they are.
@@ -120,6 +133,7 @@ const ICONS_BY_SLUG: Record<string, ComponentType<IconProps>> = {
   'security-assessment-and-testing': ChecklistMagnifierIcon,
   'security-operations': MonitorPulseIcon,
   'software-development-security': CodeBracketsIcon,
+  'final-exams': TimerIcon,
 }
 
 export function DomainIcon({
