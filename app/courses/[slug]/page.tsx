@@ -55,12 +55,13 @@ type FinalExam = {
   question_count: number
 }
 
-// High-balled on purpose: 2 minutes per mini-exam question, so the
-// estimate leans generous rather than under-promising someone's study time.
-const MINUTES_PER_QUESTION = 2
+// 45 seconds per mini-exam question (reverted from an earlier 2-minute
+// high-balled estimate). Rounded to a whole minute in lessonMinutes below,
+// since formatDuration expects whole-minute totals.
+const MINUTES_PER_QUESTION = 0.75
 
 function lessonMinutes(lesson: Lesson, questionCount: number): number {
-  return (lesson.estimated_minutes || 0) + questionCount * MINUTES_PER_QUESTION
+  return Math.round((lesson.estimated_minutes || 0) + questionCount * MINUTES_PER_QUESTION)
 }
 
 function formatDuration(totalMinutes: number): string {
