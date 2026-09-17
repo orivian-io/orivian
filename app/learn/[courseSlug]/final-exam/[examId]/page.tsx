@@ -322,7 +322,7 @@ export default function FinalExamPage() {
             <p className="text-xs font-medium uppercase tracking-wide text-brand-primary mb-3">Final Exam</p>
             <h1 className="text-3xl sm:text-4xl font-display font-medium mb-4">{exam.title}</h1>
             <p className="text-brand-secondary text-lg max-w-xl mx-auto mb-3">
-              {exam.question_count} questions, weighted across all 8 domains the same way the real exam is.
+              {exam.question_count} questions, weighted across all domains the same way the real exam is.
               Timed at {formatDuration(timeLimitSeconds)} to match the real exam format - going over won&apos;t
               cut you off, it&apos;ll just show in your results.
             </p>
