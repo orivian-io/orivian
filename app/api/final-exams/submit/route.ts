@@ -2,17 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAuthedUser } from '@/lib/get-authed-user'
 
-// Percentage-based pass line for Final Exams. Deliberately lower than the
-// 80% used for lesson mini-exams/Domain Checkpoints, since 70% is the
-// commonly-cited rough equivalent of the real CISSP exam's scaled 700/1000
-// passing score - though that scaled score comes from an adaptive item
-// bank this platform doesn't replicate, so this is a labeled approximation,
-// not a claim of matching the real scoring model. See scoringDisclaimer
-// below, which the UI should always show next to the result.
-const FINAL_EXAM_PASS_THRESHOLD_PERCENT = 70
-
-const SCORING_DISCLAIMER =
-  "This score is a straight percentage of questions answered correctly. The real CISSP exam uses adaptive testing (CAT) and a scaled 700/1000 passing score from an item bank calibrated by ISC2 - this practice exam approximates but can't reproduce that model, so treat this result as a strong directional signal, not an exact prediction."
+// The passing threshold and scoring disclaimer are per-exam data
+// (`final_exams.pass_threshold_percent` / `.scoring_disclaimer`), not
+// hardcoded here - different courses have different certifying bodies with
+// different passing scores and scoring models (e.g. CompTIA's SY0-701 vs.
+// ISC2's CISSP), so a new course only ever needs the right data on its
+// exam row, never a code change in this route. This constant is a
+// last-resort fallback for the rare case an exam row has no disclaimer set.
+const DEFAULT_SCORING_DISCLAIMER =
+  "This score is a straight percentage of questions answered correctly and may not exactly match how the real certification exam is scored."
 
 type SubmittedAnswer = {
   questionId: string
@@ -24,9 +22,9 @@ type SubmittedAnswer = {
 // anything complete and doesn't feed section_mastery, same as Domain
 // Checkpoints. `startedAt` is the timestamp /api/final-exams/start issued
 // (server clock, not client-supplied at that point), echoed back here so
-// elapsed time and whether the learner finished within the 3-hour limit
-// can be computed and shown - informationally only. Going over the limit
-// never blocks submission.
+// elapsed time and whether the learner finished within the exam's time
+// limit can be computed and shown - informationally only. Going over the
+// limit never blocks submission.
 export async function POST(req: NextRequest) {
   const user = await getAuthedUser(req)
   if (!user) {
@@ -49,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   const { data: exam, error: examErr } = await supabaseAdmin
     .from('final_exams')
-    .select('id, time_limit_minutes')
+    .select('id, time_limit_minutes, pass_threshold_percent, scoring_disclaimer')
     .eq('id', examId)
     .single()
 
@@ -90,7 +88,10 @@ export async function POST(req: NextRequest) {
 
   const questionCount = questions.length
   const scorePercent = Math.round((correctCount / questionCount) * 1000) / 10
-  const passed = scorePercent >= FINAL_EXAM_PASS_THRESHOLD_PERCENT
+  // Fall back to 70 only if this exam's row somehow has no threshold set
+  // (shouldn't happen - the content pipeline always sets one).
+  const passThreshold = exam.pass_threshold_percent ?? 70
+  const passed = scorePercent >= passThreshold
 
   const completedAtMs = Date.now()
   const elapsedSeconds = Math.max(0, Math.round((completedAtMs - startedAtMs) / 1000))
@@ -131,11 +132,11 @@ export async function POST(req: NextRequest) {
     passed,
     correctCount,
     questionCount,
-    passThreshold: FINAL_EXAM_PASS_THRESHOLD_PERCENT,
+    passThreshold,
     elapsedSeconds,
     timeLimitSeconds,
     withinTimeLimit,
-    scoringDisclaimer: SCORING_DISCLAIMER,
+    scoringDisclaimer: exam.scoring_disclaimer || DEFAULT_SCORING_DISCLAIMER,
     results: gradedAnswers.map((a) => ({
       questionId: a.question_id,
       correct: a.correct,
