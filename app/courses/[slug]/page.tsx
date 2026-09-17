@@ -590,7 +590,7 @@ export default function CoursePage() {
               <h2 className="text-xl font-medium">Final Exams</h2>
               <p className="text-sm text-brand-secondary mt-1">
                 Optional, but recommended once you&apos;ve worked through the domains. Full-length practice exams
-                weighted like the real thing, timed the same way (3 hours) - going over doesn&apos;t cut you off,
+                weighted like the real thing and timed to match it - going over doesn&apos;t cut you off,
                 it just shows in your results.
               </p>
             </div>
