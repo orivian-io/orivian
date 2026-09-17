@@ -49,11 +49,13 @@ function storageKey(examId: string, userId: string) {
   return `orivian-final-exam:${examId}:${userId}`
 }
 
-// Full-length practice exam: 125 questions spanning every CISSP domain,
-// weighted like the real exam, timed at 3 hours the same way the real CAT
-// exam is. Unlike a lesson mini-exam or Domain Checkpoint, going over the
-// time limit never blocks submission - the timer is informational, and
-// the result screen just notes whether the attempt finished within it.
+// Full-length practice exam: shared across every course. Question count,
+// domain weighting, and time limit are all per-exam data (final_exams.*),
+// not hardcoded here - e.g. CISSP runs 125 questions over 3 hours, Security+
+// runs 90 over 90 minutes. Unlike a lesson mini-exam or Domain Checkpoint,
+// going over the time limit never blocks submission - the timer is
+// informational, and the result screen just notes whether the attempt
+// finished within it.
 // Progress (answers + the server-issued start time) is saved to
 // localStorage so a refresh mid-exam doesn't lose hours of work; it's
 // cleared once the attempt is submitted.
@@ -110,6 +112,11 @@ export default function FinalExamPage() {
         question_count: data.question_count,
         course: course || null,
       })
+      // timeLimitMinutes starts at a hardcoded default (see useState below)
+      // and is otherwise only set once the exam actually starts - without
+      // this, the intro screen shows that default instead of this exam's
+      // real time limit for every course whose limit isn't 180 minutes.
+      setTimeLimitMinutes(data.time_limit_minutes)
 
       const raw = typeof window !== 'undefined' ? window.localStorage.getItem(storageKey(examId, user.id)) : null
       if (raw) {
