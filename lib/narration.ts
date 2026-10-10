@@ -8,7 +8,7 @@ export type ContentBlock =
   | { type: 'list'; style: 'bullet' | 'numbered'; items: string[] }
   | { type: 'callout'; variant: 'info' | 'warning' | 'tip'; text: string }
   | { type: 'key_term'; term: string; definition: string }
-  | { type: 'group'; heading?: string; blocks: ContentBlock[] }
+  | { type: 'group'; heading?: string; blocks?: ContentBlock[]; items?: { label: string; value: string }[] }
   | { type: 'title'; text: string; overview: string; examContext: string }
 
 // ---------------------------------------------------------------------------
@@ -108,11 +108,15 @@ function rawSpeechText(block: ContentBlock): string {
     case 'callout':
       return stripBold(block.text)
     case 'list':
-      return joinParts(block.items.map(stripBold))
+      return joinParts((block.items ?? []).map(stripBold))
     case 'key_term':
       return `${block.term}: ${stripBold(block.definition)}`
     case 'group':
-      return joinParts([block.heading, ...block.blocks.map(rawSpeechText)])
+      return joinParts([
+        block.heading,
+        ...(block.blocks ?? []).map(rawSpeechText),
+        ...(block.items ?? []).map((item) => `${stripBold(item.label)}: ${stripBold(item.value)}`),
+      ])
     case 'title':
       return joinParts([
         stripBold(block.text),

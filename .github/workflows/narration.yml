@@ -1,0 +1,103 @@
+# Generates lesson narration on GitHub's servers instead of a laptop.
+#
+# A quick "plan" job checks which courses/voices have lessons without audio,
+# then splits that work into many small jobs that run in parallel. Already
+# generated audio is skipped, so a run with nothing to do finishes in a
+# minute or two.
+#
+# Runs automatically every night (picks up edited or new lessons) and can be
+# started by hand: GitHub -> Actions -> Generate narration -> Run workflow.
+#
+# Needs two repository secrets (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_URL               same as NEXT_PUBLIC_SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY  same as in .env.local
+
+name: Generate narration
+
+on:
+  workflow_dispatch:
+    inputs:
+      course:
+        description: 'Course slug, e.g. cissp (blank = every published course)'
+        required: false
+        default: ''
+      voices:
+        description: 'Voices, comma-separated, e.g. af_bella,bf_emma (blank = all)'
+        required: false
+        default: ''
+  schedule:
+    - cron: '17 7 * * *' # nightly, ~3:17am Eastern
+
+permissions:
+  contents: read
+
+# Never run two generations at once.
+concurrency:
+  group: narration
+  cancel-in-progress: false
+
+env:
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/narration/package-lock.json
+      - name: Install
+        working-directory: tools/narration
+        run: npm ci
+      - name: Find lessons that need audio
+        id: plan
+        working-directory: tools/narration
+        env:
+          COURSE: ${{ inputs.course }}
+          VOICES: ${{ inputs.voices }}
+        run: |
+          ARGS="--plan"
+          if [ -n "$COURSE" ]; then ARGS="$ARGS --course $COURSE"; else ARGS="$ARGS --all"; fi
+          if [ -n "$VOICES" ]; then ARGS="$ARGS --voices $VOICES"; fi
+          npx tsx generate.ts $ARGS
+
+  generate:
+    name: ${{ matrix.course }} · ${{ matrix.voice }} · ${{ matrix.shard }}/${{ matrix.shards }}
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.matrix) }}
+    env:
+      KOKORO_CACHE_DIR: /home/runner/.cache/kokoro
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/narration/package-lock.json
+      - name: Install
+        working-directory: tools/narration
+        run: npm ci
+      - name: Cache Kokoro model
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.cache/kokoro
+          key: kokoro-82m-v1.0-fp32
+      - name: Generate
+        working-directory: tools/narration
+        run: npx tsx generate.ts --course "${{ matrix.course }}" --voices "${{ matrix.voice }}" --shard "${{ matrix.shard }}/${{ matrix.shards }}"

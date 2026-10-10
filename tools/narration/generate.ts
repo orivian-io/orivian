@@ -12,12 +12,14 @@
 //   npm run generate -- --course cissp --dry-run  write MP3s locally, no upload
 //
 // Options: --force (regenerate everything), --fast (smaller model, slightly
-// lower quality), --fake (test tones instead of Kokoro, for testing).
+// lower quality), --fake (test tones instead of Kokoro, for testing),
+// --plan (list what still needs generating, as a GitHub Actions job matrix),
+// --shard 2/5 (process every 5th lesson starting at the 2nd, for parallel runs).
 //
 // Reads NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from the
-// project's .env.local. The service key never leaves this computer.
+// project's .env.local, or from environment variables (GitHub Actions).
 
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
@@ -42,10 +44,17 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 // ---------------------------------------------------------------------------
 
 function parseArgs(argv: string[]) {
-  const args = { all: false, course: '', lessons: [] as string[], voices: [] as string[], force: false, dryRun: false, fast: false, fake: false }
+  const args = { plan: false, shard: 1, shards: 1, all: false, course: '', lessons: [] as string[], voices: [] as string[], force: false, dryRun: false, fast: false, fake: false }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--all') args.all = true
+    else if (a === '--plan') args.plan = true
+    else if (a === '--shard') {
+      const m = (argv[++i] ?? '').match(/^(\d+)\/(\d+)$/)
+      if (!m || +m[1] < 1 || +m[1] > +m[2]) throw new Error('--shard expects e.g. 2/5')
+      args.shard = +m[1]
+      args.shards = +m[2]
+    }
     else if (a === '--course') args.course = argv[++i] ?? ''
     else if (a === '--lesson') args.lessons.push(argv[++i] ?? '')
     else if (a === '--voices') args.voices = (argv[++i] ?? '').split(',').map((v) => v.trim()).filter(Boolean)
@@ -63,16 +72,17 @@ function parseArgs(argv: string[]) {
 }
 
 function loadEnv() {
-  const file = join(ROOT, '.env.local')
-  if (!existsSync(file)) throw new Error(`Missing ${file}`)
   const env: Record<string, string> = {}
-  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
-    if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+  const file = join(ROOT, '.env.local')
+  if (existsSync(file)) {
+    for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
+      if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+    }
   }
-  const url = env.NEXT_PUBLIC_SUPABASE_URL
-  const key = env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('.env.local needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY')
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local or the environment')
   return { url, key }
 }
 
@@ -110,13 +120,73 @@ async function main() {
   const { url, key } = loadEnv()
   const db = createClient(url, key, { auth: { persistSession: false } })
   const storage = db.storage.from(NARRATION_BUCKET)
+
+  // --plan: work out which course/voice pairs still have blocks to generate
+  // and how many parallel jobs (shards) each needs. No audio is generated.
+  async function planJobs(all: { id: string; courseSlug: string; content_blocks: unknown }[]) {
+    const fetchManifest = (path: string) =>
+      withRetry('loading manifest', async () => {
+        const { data, error } = await storage.download(path)
+        if (error) {
+          if (/not.?found|404/i.test(`${error.message} ${(error as { status?: number }).status ?? ''}`)) return null
+          throw new Error(error.message)
+        }
+        try {
+          const parsed = JSON.parse(await data.text()) as NarrationManifest
+          return parsed.version === NARRATION_VERSION ? parsed : null
+        } catch {
+          return null
+        }
+      })
+
+    const remaining = new Map<string, number>() // "course|voice" -> characters left
+    const tasks: (() => Promise<void>)[] = []
+    for (const voice of args.voices) {
+      for (const lesson of all) {
+        tasks.push(async () => {
+          const manifest = args.force ? null : await fetchManifest(narrationPaths.manifest(voice, lesson.id))
+          let chars = 0
+          for (const block of (lesson.content_blocks as ContentBlock[]) || []) {
+            const text = blockToSpeechText(block)
+            if (text && !manifest?.blocks[hashSpeechText(text)]) chars += text.length
+          }
+          const key = `${lesson.courseSlug}|${voice}`
+          remaining.set(key, (remaining.get(key) ?? 0) + chars)
+        })
+      }
+    }
+    for (let i = 0; i < tasks.length; i += 16) await Promise.all(tasks.slice(i, i + 16).map((t) => t()))
+
+    const CHARS_PER_JOB = 40000 // roughly 30-40 minutes of work on a GitHub runner
+    const matrix: { course: string; voice: string; shard: number; shards: number }[] = []
+    const rows: string[] = []
+    for (const [key, chars] of [...remaining.entries()].sort()) {
+      const [course, voice] = key.split('|')
+      if (chars === 0) continue
+      const shards = Math.min(12, Math.max(1, Math.ceil(chars / CHARS_PER_JOB)))
+      for (let shard = 1; shard <= shards; shard++) matrix.push({ course, voice, shard, shards })
+      rows.push(`| ${course} | ${voice} | ${chars.toLocaleString()} | ${shards} |`)
+    }
+    const totalChars = [...remaining.values()].reduce((a, b) => a + b, 0)
+    console.log(rows.length ? ['| Course | Voice | Characters left | Jobs |', '|---|---|---|---|', ...rows].join('\n') : 'Everything is up to date.')
+    console.log(`\n${matrix.length} job(s), ${totalChars.toLocaleString()} characters to generate.`)
+    if (process.env.GITHUB_OUTPUT) {
+      appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(matrix)}\ncount=${matrix.length}\n`)
+    }
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(
+        process.env.GITHUB_STEP_SUMMARY,
+        `## Narration plan\n\n${rows.length ? ['| Course | Voice | Characters left | Jobs |', '|---|---|---|---|', ...rows].join('\n') : 'Everything is up to date.'}\n`,
+      )
+    }
+  }
   const previewDir = join(ROOT, '.narration-preview')
 
   // Lessons to narrate, ordered course -> domain/section -> lesson.
   type LessonRow = { id: string; title: string; content_blocks: unknown; order_index: number; section_id: string | null; course_id: string }
-  type Lesson = LessonRow & { courseTitle: string; sectionTitle: string }
+  type Lesson = LessonRow & { courseTitle: string; courseSlug: string; sectionTitle: string }
   const select = 'id, title, content_blocks, order_index, section_id, course_id'
-  let courseFilter = db.from('courses').select('id, title')
+  let courseFilter = db.from('courses').select('id, title, slug')
   if (args.lessons.length) {
     const { data, error } = await withRetry('loading lessons', async () => await db.from('lessons').select('course_id').in('id', args.lessons))
     if (error) throw error
@@ -148,11 +218,28 @@ async function main() {
     })
     for (const row of sorted) {
       const sectionTitle = (row.section_id && (sectionById.get(row.section_id)?.title as string)) || 'Other lessons'
-      lessons.push({ ...row, courseTitle: course.title as string, sectionTitle })
+      lessons.push({ ...row, courseTitle: course.title as string, courseSlug: course.slug as string, sectionTitle })
     }
-    console.log(`Course: ${course.title} (${sorted.length} lessons)`)
+    if (!args.plan) console.log(`Course: ${course.title} (${sorted.length} lessons)`)
   }
   if (!lessons.length) throw new Error('No lessons found')
+
+  if (args.plan) {
+    await planJobs(lessons)
+    return
+  }
+  if (args.shards > 1) {
+    // Shards are taken per course so each parallel job gets a fair mix.
+    const counters = new Map<string, number>()
+    const kept = lessons.filter((lesson) => {
+      const n = counters.get(lesson.courseSlug) ?? 0
+      counters.set(lesson.courseSlug, n + 1)
+      return n % args.shards === args.shard - 1
+    })
+    lessons.length = 0
+    lessons.push(...kept)
+    console.log(`Shard ${args.shard}/${args.shards}: ${lessons.length} lessons`)
+  }
 
   if (!args.dryRun) {
     const { error } = await withRetry('checking storage', async () => await db.storage.getBucket(NARRATION_BUCKET))

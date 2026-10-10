@@ -28,3 +28,11 @@ generate blocks whose text changed, so run it again after editing lessons.
 Blocks without generated audio still play, using the browser's own voice.
 
 Voices are listed in `lib/narration.ts` (`NARRATION_VOICES`).
+
+## Generate on GitHub instead (recommended)
+
+`.github/workflows/narration.yml` runs the same generator on GitHub's free
+servers, split into many parallel jobs, and re-runs nightly to pick up new
+or edited lessons. One-time setup: add repository secrets `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` (Settings → Secrets and variables → Actions).
+Start a run from Actions → Generate narration → Run workflow.

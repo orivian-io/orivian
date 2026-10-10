@@ -534,9 +534,19 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
               {block.heading}
             </h2>
           )}
-          {block.blocks.map((child, i) => (
+          {block.blocks?.map((child, i) => (
             <ContentBlockView key={i} block={child} nested isOrientation={isOrientation} />
           ))}
+          {block.items && block.items.length > 0 && (
+            <dl className="space-y-3">
+              {block.items.map((item, i) => (
+                <div key={i} className="rounded-xl bg-brand-surface p-4 sm:p-5">
+                  <dt className="text-brand-primary font-medium">{renderInline(item.label)}</dt>
+                  <dd className="mt-1 text-brand-text text-base sm:text-lg leading-relaxed">{renderInline(item.value)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
         </div>
       )
     default:

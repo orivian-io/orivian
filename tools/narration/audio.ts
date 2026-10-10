@@ -25,6 +25,11 @@ export async function createSynth(fast: boolean, fake: boolean): Promise<Synth> 
     }
   }
   const { KokoroTTS } = await import('kokoro-js')
+  if (process.env.KOKORO_CACHE_DIR) {
+    // Lets GitHub Actions keep the downloaded model between runs.
+    const { env } = await import('@huggingface/transformers')
+    env.cacheDir = process.env.KOKORO_CACHE_DIR
+  }
   console.log(`Loading Kokoro (${fast ? 'q8, fast' : 'fp32, best quality'}) - first run downloads the model...`)
   const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
     dtype: fast ? 'q8' : 'fp32',
