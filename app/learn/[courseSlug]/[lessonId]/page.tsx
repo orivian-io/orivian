@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useStudyTimer } from '@/lib/use-study-timer'
-import { blockToSpeechText, speak, stopSpeaking, isSpeechSupported, type ContentBlock } from '@/lib/tts'
+import { blockToSpeechText, type ContentBlock } from '@/lib/narration'
+import { prefetchNarration, startNarration, stopNarration } from '@/lib/narrator'
+import { createReadAlong } from '@/lib/read-along'
 import { DomainIcon } from '@/lib/domain-icons'
 import VoiceSettings from '@/components/VoiceSettings'
 import { renderInline } from '@/lib/inline-format'
@@ -97,25 +99,43 @@ export default function LessonPlayerPage() {
     load()
   }, [lessonId, router])
 
-  // Stop any narration on unmount, and whenever the visible block/phase changes.
-  useEffect(() => () => stopSpeaking(), [])
+  // Load this lesson's narration manifest up front so Listen starts
+  // instantly (mobile browsers only allow audio to start straight from a tap).
   useEffect(() => {
-    stopSpeaking()
-    setSpeaking(false)
+    if (lesson?.id) void prefetchNarration(lesson.id)
+  }, [lesson?.id])
+
+  // Stop narration on unmount, and whenever the visible block/phase changes.
+  // Stopping fires the narration's onEnd, which resets `speaking`.
+  useEffect(() => () => stopNarration(), [])
+  useEffect(() => {
+    stopNarration()
   }, [blockIndex, phase])
+
+  const blockRef = useRef<HTMLDivElement>(null)
 
   const currentBlock = lesson?.content_blocks[blockIndex]
   const isLastBlock = lesson ? blockIndex === lesson.content_blocks.length - 1 : false
 
   const handleListen = () => {
-    if (!currentBlock) return
+    if (!currentBlock || !lesson) return
     if (speaking) {
-      stopSpeaking()
-      setSpeaking(false)
+      stopNarration()
       return
     }
+    stopNarration()
+    const text = blockToSpeechText(currentBlock)
+    const readAlong = createReadAlong(blockRef.current, text)
     setSpeaking(true)
-    speak(blockToSpeechText(currentBlock), () => setSpeaking(false))
+    startNarration({
+      lessonId: lesson.id,
+      text,
+      onProgress: readAlong.update,
+      onEnd: () => {
+        readAlong.clear()
+        setSpeaking(false)
+      },
+    })
   }
 
   // Shared by domain recaps and Domain 0 orientation lessons - both are
@@ -275,22 +295,20 @@ export default function LessonPlayerPage() {
               ))}
             </div>
 
-            <div className="flex-1 flex flex-col justify-start pt-4 sm:pt-10 pb-8">
+            <div ref={blockRef} className="flex-1 flex flex-col justify-start pt-4 sm:pt-10 pb-8">
               <ContentBlockView block={currentBlock} isOrientation={lesson.lesson_type === 'orientation'} />
             </div>
 
             <div className="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-brand-muted/10">
-              {isSpeechSupported() ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleListen}
-                    className="text-sm text-brand-secondary hover:text-brand-primary transition flex items-center gap-1.5"
-                  >
-                    {speaking ? '⏸ Pause' : '🔊 Listen'}
-                  </button>
-                  <VoiceSettings />
-                </div>
-              ) : <span />}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleListen}
+                  className="text-sm text-brand-secondary hover:text-brand-primary transition flex items-center gap-1.5"
+                >
+                  {speaking ? '■ Stop' : '🔊 Listen'}
+                </button>
+                <VoiceSettings />
+              </div>
 
               <div className="flex items-center gap-3">
                 {blockIndex > 0 && (

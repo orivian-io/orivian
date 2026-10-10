@@ -26,3 +26,12 @@ h1, h2, h3 {
   font-family: var(--font-display), serif;
   letter-spacing: -0.01em;
 }
+/* Read-along highlighting for lesson narration (see lib/read-along.ts). */
+::highlight(tts-sentence) {
+  background-color: rgba(193, 153, 85, 0.16);
+}
+
+::highlight(tts-word) {
+  background-color: rgba(228, 196, 115, 0.9);
+  color: #0A0C0F;
+}
