@@ -35,6 +35,14 @@ export async function createSynth(fast: boolean, fake: boolean): Promise<Synth> 
     dtype: fast ? 'q8' : 'fp32',
     device: 'cpu',
   })
+  // Kokoro's Hindi-trained voices (hm_*) aren't in kokoro-js's English voice
+  // list, but their voice files ship with it. Reading English text with
+  // British English pronunciation gives English with an Indian accent.
+  const englishWithIndianAccent = new Set(['hm_omega'])
+  const validate = (tts as unknown as { _validate_voice: (v: string) => string })._validate_voice.bind(tts)
+  ;(tts as unknown as { _validate_voice: (v: string) => string })._validate_voice = (v: string) =>
+    englishWithIndianAccent.has(v) ? 'b' : validate(v)
+
   return async (text, voice) => {
     const out = await tts.generate(text, { voice: voice as 'af_heart' })
     if (out.sampling_rate !== SAMPLE_RATE) throw new Error(`Unexpected sample rate ${out.sampling_rate}`)

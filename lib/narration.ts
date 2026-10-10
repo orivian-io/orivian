@@ -23,6 +23,8 @@ export const NARRATION_VOICES = [
   { id: 'af_bella', name: 'Bella', description: 'Bright and upbeat · US' },
   { id: 'am_michael', name: 'Michael', description: 'Calm and steady · US' },
   { id: 'bf_emma', name: 'Emma', description: 'Polished · UK' },
+  // Kokoro's Hindi-trained voice reading English (Indian accent).
+  { id: 'hm_omega', name: 'Omega', description: 'Indian English' },
 ] as const
 
 export type NarrationVoiceId = (typeof NARRATION_VOICES)[number]['id']
