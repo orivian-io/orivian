@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useStudyTimer } from '@/lib/use-study-timer'
 import { blockToSpeechText, speak, stopSpeaking, isSpeechSupported, type ContentBlock } from '@/lib/tts'
 import { DomainIcon } from '@/lib/domain-icons'
+import VoiceSettings from '@/components/VoiceSettings'
 import { renderInline } from '@/lib/inline-format'
 import { formatDuration } from '@/lib/format-duration'
 
@@ -280,12 +281,15 @@ export default function LessonPlayerPage() {
 
             <div className="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-brand-muted/10">
               {isSpeechSupported() ? (
-                <button
-                  onClick={handleListen}
-                  className="text-sm text-brand-secondary hover:text-brand-primary transition flex items-center gap-1.5"
-                >
-                  {speaking ? '⏸ Pause' : '🔊 Listen'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleListen}
+                    className="text-sm text-brand-secondary hover:text-brand-primary transition flex items-center gap-1.5"
+                  >
+                    {speaking ? '⏸ Pause' : '🔊 Listen'}
+                  </button>
+                  <VoiceSettings />
+                </div>
               ) : <span />}
 
               <div className="flex items-center gap-3">
