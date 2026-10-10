@@ -76,6 +76,31 @@ function loadEnv() {
   return { url, key }
 }
 
+// Retries network calls (uploads, downloads, queries) so a brief Wi-Fi or
+// Supabase hiccup doesn't stop a multi-hour run.
+async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 8): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      if (attempt >= attempts) throw err
+      const wait = Math.min(60, 2 ** attempt)
+      const reason = err instanceof Error ? err.message : String(err)
+      console.log(`\n    ! Network problem ${label} (${reason}). Retrying in ${wait}s (attempt ${attempt + 1}/${attempts})...`)
+      await new Promise((r) => setTimeout(r, wait * 1000))
+    }
+  }
+}
+
+function formatDuration(ms: number) {
+  const total = Math.round(ms / 1000)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const sec = total % 60
+  return h ? `${h}h ${m}m` : m ? `${m}m ${sec}s` : `${sec}s`
+}
+
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -87,30 +112,50 @@ async function main() {
   const storage = db.storage.from(NARRATION_BUCKET)
   const previewDir = join(ROOT, '.narration-preview')
 
-  // Lessons to narrate.
-  const select = 'id, title, content_blocks, order_index'
-  let lessons: { id: string; title: string; content_blocks: unknown; order_index: number }[] = []
+  // Lessons to narrate, ordered course -> domain/section -> lesson.
+  type LessonRow = { id: string; title: string; content_blocks: unknown; order_index: number; section_id: string | null; course_id: string }
+  type Lesson = LessonRow & { courseTitle: string; sectionTitle: string }
+  const select = 'id, title, content_blocks, order_index, section_id, course_id'
+  let courseFilter = db.from('courses').select('id, title')
   if (args.lessons.length) {
-    const { data, error } = await db.from('lessons').select(select).in('id', args.lessons)
+    const { data, error } = await withRetry('loading lessons', async () => await db.from('lessons').select('course_id').in('id', args.lessons))
     if (error) throw error
-    lessons = data ?? []
+    courseFilter = courseFilter.in('id', [...new Set((data ?? []).map((l) => l.course_id as string))])
   } else {
-    let courseQuery = db.from('courses').select('id, title')
-    courseQuery = args.all ? courseQuery.eq('published', true) : courseQuery.eq('slug', args.course)
-    const { data: courses, error } = await courseQuery.order('title')
-    if (error) throw error
-    if (!courses?.length) throw new Error(args.all ? 'No published courses found' : `Course "${args.course}" not found`)
-    for (const course of courses) {
-      const { data, error: lessonsError } = await db.from('lessons').select(select).eq('course_id', course.id).order('order_index')
-      if (lessonsError) throw lessonsError
-      console.log(`Course: ${course.title} (${data?.length ?? 0} lessons)`)
-      lessons.push(...(data ?? []))
+    courseFilter = args.all ? courseFilter.eq('published', true) : courseFilter.eq('slug', args.course)
+  }
+  const { data: courses, error: coursesError } = await withRetry('loading courses', async () => await courseFilter.order('title'))
+  if (coursesError) throw coursesError
+  if (!courses?.length) throw new Error(args.lessons.length ? 'No lessons found' : args.all ? 'No published courses found' : `Course "${args.course}" not found`)
+
+  const lessons: Lesson[] = []
+  for (const course of courses) {
+    const [{ data: sections, error: sectionsError }, { data: rows, error: lessonsError }] = await withRetry('loading lessons', async () =>
+      Promise.all([
+        db.from('sections').select('id, title, order_index').eq('course_id', course.id),
+        args.lessons.length
+          ? db.from('lessons').select(select).eq('course_id', course.id).in('id', args.lessons)
+          : db.from('lessons').select(select).eq('course_id', course.id),
+      ]),
+    )
+    if (sectionsError) throw sectionsError
+    if (lessonsError) throw lessonsError
+    const sectionById = new Map((sections ?? []).map((sec) => [sec.id as string, sec]))
+    const sorted = ((rows ?? []) as LessonRow[]).sort((a, b) => {
+      const sa = a.section_id ? sectionById.get(a.section_id)?.order_index ?? 0 : 0
+      const sb = b.section_id ? sectionById.get(b.section_id)?.order_index ?? 0 : 0
+      return sa - sb || a.order_index - b.order_index
+    })
+    for (const row of sorted) {
+      const sectionTitle = (row.section_id && (sectionById.get(row.section_id)?.title as string)) || 'Other lessons'
+      lessons.push({ ...row, courseTitle: course.title as string, sectionTitle })
     }
+    console.log(`Course: ${course.title} (${sorted.length} lessons)`)
   }
   if (!lessons.length) throw new Error('No lessons found')
 
   if (!args.dryRun) {
-    const { error } = await db.storage.getBucket(NARRATION_BUCKET)
+    const { error } = await withRetry('checking storage', async () => await db.storage.getBucket(NARRATION_BUCKET))
     if (error) {
       console.log(`Creating public storage bucket "${NARRATION_BUCKET}"...`)
       const { error: createError } = await db.storage.createBucket(NARRATION_BUCKET, { public: true })
@@ -127,8 +172,28 @@ async function main() {
       writeFileSync(file, body)
       return
     }
-    const { error } = await storage.upload(path, body, { contentType, cacheControl, upsert: true })
-    if (error) throw new Error(`Upload failed for ${path}: ${error.message}`)
+    await withRetry(`uploading ${path}`, async () => {
+      const { error } = await storage.upload(path, body, { contentType, cacheControl, upsert: true })
+      if (error) throw new Error(error.message)
+    })
+  }
+
+  const loadManifest = async (path: string): Promise<NarrationManifest | null> => {
+    if (args.dryRun || args.force) return null
+    return withRetry('loading manifest', async () => {
+      const { data, error } = await storage.download(path)
+      if (error) {
+        // A missing manifest just means nothing has been generated yet.
+        if (/not.?found|404/i.test(`${error.message} ${(error as { status?: number }).status ?? ''}`)) return null
+        throw new Error(error.message)
+      }
+      try {
+        const parsed = JSON.parse(await data.text()) as NarrationManifest
+        return parsed.version === NARRATION_VERSION ? parsed : null
+      } catch {
+        return null // Corrupt manifest - regenerate.
+      }
+    })
   }
 
   const started = Date.now()
@@ -140,33 +205,42 @@ async function main() {
 
     // Voice sample for the settings panel.
     const previewPath = narrationPaths.preview(voice)
-    const hasPreview = !args.dryRun && (await storage.exists(previewPath)).data
+    const hasPreview = !args.dryRun && (await withRetry('checking preview', async () => (await storage.exists(previewPath)).data))
     if (args.force || !hasPreview) {
       const { mp3 } = await narrate(synth, PREVIEW_TEXT, voice)
       await save(previewPath, mp3, 'audio/mpeg', '86400')
       console.log('  preview sample saved')
     }
 
-    for (const lesson of lessons) {
-      const blocks = (lesson.content_blocks as ContentBlock[]) || []
-      const manifestPath = narrationPaths.manifest(voice, lesson.id)
-
-      let previous: NarrationManifest | null = null
-      if (!args.dryRun && !args.force) {
-        const { data } = await storage.download(manifestPath)
-        if (data) {
-          try {
-            const parsed = JSON.parse(await data.text()) as NarrationManifest
-            if (parsed.version === NARRATION_VERSION) previous = parsed
-          } catch {
-            // Corrupt manifest - regenerate.
-          }
-        }
+    let currentCourse = ''
+    let currentSection = ''
+    for (const [index, lesson] of lessons.entries()) {
+      if (lesson.courseTitle !== currentCourse) {
+        currentCourse = lesson.courseTitle
+        currentSection = ''
+        console.log(`\n━━ ${currentCourse} ━━`)
+      }
+      if (lesson.sectionTitle !== currentSection) {
+        currentSection = lesson.sectionTitle
+        console.log(`\n  ▸ ${currentSection}`)
       }
 
+      const blocks = (lesson.content_blocks as ContentBlock[]) || []
+      const manifestPath = narrationPaths.manifest(voice, lesson.id)
+      const previous = await loadManifest(manifestPath)
+      const counter = `[${index + 1}/${lessons.length}]`
+
       const next: Record<string, NarrationBlock> = {}
+      const writeManifest = () =>
+        save(
+          manifestPath,
+          JSON.stringify({ version: NARRATION_VERSION, voice, lessonId: lesson.id, generatedAt: new Date().toISOString(), blocks: next } satisfies NarrationManifest),
+          'application/json',
+          '60',
+        )
+
       let lessonGenerated = 0
-      for (const block of blocks) {
+      for (const [blockIndex, block] of blocks.entries()) {
         const text = blockToSpeechText(block)
         if (!text) continue
         const hash = hashSpeechText(text)
@@ -178,36 +252,30 @@ async function main() {
           continue
         }
         const blockStarted = Date.now()
-        process.stdout.write(`  ${lesson.title} - block ${blocks.indexOf(block) + 1}/${blocks.length}... `)
+        process.stdout.write(`    ${lesson.title} · block ${blockIndex + 1}/${blocks.length}... `)
         const { mp3, duration, segments } = await narrate(synth, text, voice)
-        console.log(`${duration.toFixed(0)}s of audio in ${((Date.now() - blockStarted) / 1000).toFixed(0)}s`)
         const file = narrationPaths.block(voice, lesson.id, hash)
         await save(file, mp3, 'audio/mpeg', '31536000')
         next[hash] = { file, duration, segments }
+        // Save progress after every block so an interruption loses at most one block.
+        await writeManifest()
+        console.log(`${duration.toFixed(0)}s of audio in ${((Date.now() - blockStarted) / 1000).toFixed(0)}s`)
         generated++
         lessonGenerated++
       }
 
       const changed = lessonGenerated > 0 || !previous || Object.keys(previous.blocks).length !== Object.keys(next).length
       if (changed) {
-        const manifest: NarrationManifest = {
-          version: NARRATION_VERSION,
-          voice,
-          lessonId: lesson.id,
-          generatedAt: new Date().toISOString(),
-          blocks: next,
-        }
-        await save(manifestPath, JSON.stringify(manifest), 'application/json', '60')
-
+        if (lessonGenerated === 0) await writeManifest()
         // Remove audio for blocks that no longer exist.
         const stale = Object.values(previous?.blocks ?? {})
           .map((b) => b.file)
           .filter((f) => !Object.values(next).some((b) => b.file === f))
-        if (stale.length && !args.dryRun) await storage.remove(stale)
+        if (stale.length && !args.dryRun) await withRetry('removing old audio', async () => void (await storage.remove(stale)))
       }
 
-      const secs = Math.round((Date.now() - started) / 1000)
-      console.log(`  ${lesson.title}: ${lessonGenerated ? `${lessonGenerated} block(s) generated` : 'up to date'}  [${secs}s elapsed]`)
+      const elapsed = formatDuration(Date.now() - started)
+      console.log(`    ${counter} ${lesson.title}: ${lessonGenerated ? `${lessonGenerated} block(s) generated` : 'up to date'}  [${elapsed} elapsed]`)
     }
   }
 
