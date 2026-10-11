@@ -30,7 +30,7 @@ export type MyStats = {
   lessons_completed: number
 }
 
-export type LeaderboardEntry = { name: string; is_you: boolean; current?: number; longest?: number; xp?: number; total_xp?: number }
+export type LeaderboardEntry = { name: string; avatar?: string | null; is_you: boolean; current?: number; longest?: number; xp?: number; total_xp?: number }
 
 export type Leaderboard = {
   streaks: LeaderboardEntry[]
@@ -42,6 +42,11 @@ export type Leaderboard = {
 // completed, exam submitted) so they refresh and can celebrate a level-up.
 export function notifyProgress() {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('orivian:progress'))
+}
+
+// Tell the menu that the learner's avatar or name changed.
+export function notifyProfileChanged() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('orivian:profile'))
 }
 
 export async function fetchMyStats(): Promise<MyStats | null> {

@@ -6,9 +6,11 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import NavStreak from '@/components/NavStreak'
+import Avatar from '@/components/Avatar'
 
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null)
+  const [avatar, setAvatar] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -20,6 +22,27 @@ export default function Navbar() {
 
     return () => listener.subscription.unsubscribe()
   }, [])
+
+  // The learner's avatar, refreshed when they change it on their profile.
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    const load = () =>
+      supabase
+        .from('profiles')
+        .select('avatar')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          if (!cancelled) setAvatar(data?.avatar ?? null)
+        })
+    load()
+    window.addEventListener('orivian:profile', load)
+    return () => {
+      cancelled = true
+      window.removeEventListener('orivian:profile', load)
+    }
+  }, [user])
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -45,7 +68,8 @@ export default function Navbar() {
             <Link href="/notes" className="hover:text-brand-primary transition">
               Notes
             </Link>
-            <Link href="/profile" className="hover:text-brand-primary transition">
+            <Link href="/profile" className="flex items-center gap-2 hover:text-brand-primary transition">
+              <Avatar avatarId={avatar} name={user.user_metadata?.full_name || user.email} size={26} />
               Profile
             </Link>
             <button

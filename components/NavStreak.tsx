@@ -5,6 +5,8 @@ import Link from 'next/link'
 import StreakCalendar from '@/components/StreakCalendar'
 import LevelBadge from '@/components/LevelBadge'
 import { levelFor, type LevelInfo } from '@/lib/levels'
+import Avatar from '@/components/Avatar'
+import { avatarsUnlockedBetween, type AvatarDef } from '@/lib/avatars'
 import { fetchMyStats, nextTier, syncTimezone, tierFor, todayIn, type MyStats } from '@/lib/stats'
 
 const LEVEL_KEY = 'orivian.level.'
@@ -32,7 +34,7 @@ function writeSeenLevel(userId: string, level: number) {
 export default function NavStreak({ userId }: { userId: string }) {
   const [stats, setStats] = useState<MyStats | null>(null)
   const [open, setOpen] = useState(false)
-  const [levelUp, setLevelUp] = useState<LevelInfo | null>(null)
+  const [levelUp, setLevelUp] = useState<{ info: LevelInfo; unlocked: AvatarDef[] } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export default function NavStreak({ userId }: { userId: string }) {
       const info = levelFor(s.xp.total)
       const seen = readSeenLevel(userId)
       // Only celebrate a level reached since we last looked (not on first visit).
-      if (seen !== null && info.level > seen) setLevelUp(info)
+      if (seen !== null && info.level > seen) setLevelUp({ info, unlocked: avatarsUnlockedBetween(seen, info.level) })
       if (seen === null || info.level !== seen) writeSeenLevel(userId, info.level)
     }
 
@@ -65,7 +67,7 @@ export default function NavStreak({ userId }: { userId: string }) {
 
   useEffect(() => {
     if (!levelUp) return
-    const t = setTimeout(() => setLevelUp(null), 7000)
+    const t = setTimeout(() => setLevelUp(null), levelUp.unlocked.length > 0 ? 12000 : 7000)
     return () => clearTimeout(t)
   }, [levelUp])
 
@@ -167,12 +169,30 @@ export default function NavStreak({ userId }: { userId: string }) {
             ✕
           </button>
           <p className="text-3xl mb-1" aria-hidden="true">
-            🎉 {levelUp.emoji}
+            🎉 {levelUp.info.emoji}
           </p>
           <p className="font-medium text-brand-primary">Level up!</p>
           <p className="text-sm text-brand-text">
-            You reached Level {levelUp.level} · {levelUp.title}
+            You reached Level {levelUp.info.level} · {levelUp.info.title}
           </p>
+          {levelUp.unlocked.length > 0 && (
+            <div className="mt-3 border-t border-brand-muted/20 pt-3">
+              <p className="text-xs uppercase tracking-wide text-brand-secondary mb-2">
+                New avatar{levelUp.unlocked.length === 1 ? '' : 's'} unlocked
+              </p>
+              <div className="flex flex-wrap justify-center gap-3 mb-2">
+                {levelUp.unlocked.map((a) => (
+                  <span key={a.id} className="flex flex-col items-center gap-1">
+                    <Avatar avatarId={a.id} size={44} />
+                    <span className="text-[11px] text-brand-secondary">{a.name}</span>
+                  </span>
+                ))}
+              </div>
+              <Link href="/profile?avatars=1" onClick={() => setLevelUp(null)} className="text-sm text-brand-primary hover:underline">
+                Choose your avatar →
+              </Link>
+            </div>
+          )}
         </div>
       )}
     </div>

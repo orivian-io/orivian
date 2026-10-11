@@ -7,6 +7,9 @@ import { supabase } from '@/lib/supabase'
 import StreakCalendar from '@/components/StreakCalendar'
 import AccuracyTrend from '@/components/AccuracyTrend'
 import LevelBadge from '@/components/LevelBadge'
+import Avatar from '@/components/Avatar'
+import { nextAvatarUnlock } from '@/lib/avatars'
+import { levelFor } from '@/lib/levels'
 import {
   STREAK_TIERS,
   fetchLeaderboard,
@@ -80,6 +83,7 @@ export default function StatsPage() {
       {/* Level */}
       <div className="rounded-xl bg-brand-surface p-5 mb-3">
         <LevelBadge xp={stats.xp.total} variant="card" />
+        <NextUnlock level={levelFor(stats.xp.total).level} />
       </div>
 
       {/* Headline numbers */}
@@ -215,6 +219,25 @@ export default function StatsPage() {
   )
 }
 
+function NextUnlock({ level }: { level: number }) {
+  const next = nextAvatarUnlock(level)
+  if (!next) return <p className="mt-4 text-xs text-brand-secondary">Every avatar unlocked. 🏔️</p>
+  return (
+    <Link
+      href="/profile?avatars=1"
+      className="mt-4 flex items-center gap-3 rounded-lg border border-brand-muted/15 px-3 py-2 text-sm hover:border-brand-primary/40 transition"
+    >
+      <span className="opacity-50 grayscale">
+        <Avatar avatarId={next.id} size={32} />
+      </span>
+      <span className="text-brand-secondary">
+        Next avatar: <span className="text-brand-text">{next.name}</span> unlocks at Level {next.unlockLevel}
+      </span>
+      <span className="ml-auto text-brand-primary">Avatars →</span>
+    </Link>
+  )
+}
+
 function Tile({ big, label, sub, highlight }: { big: string; label: string; sub?: string; highlight?: boolean }) {
   return (
     <div className={`rounded-xl p-5 ${highlight ? 'bg-brand-primary/10 border border-brand-primary/40' : 'bg-brand-surface'}`}>
@@ -315,6 +338,7 @@ function LeaderboardList({ entries, mode }: { entries: LeaderboardEntry[]; mode:
           >
             <span className="w-7 text-center tabular-nums text-brand-secondary">{MEDALS[i] ?? i + 1}</span>
             <span className="flex flex-1 min-w-0 items-center gap-2">
+              <Avatar avatarId={e.avatar} name={e.name} size={28} />
               <span className="truncate">{e.name}</span>
               {typeof e.total_xp === 'number' && <LevelBadge xp={e.total_xp} />}
               {e.is_you && <span className="text-xs text-brand-primary">You</span>}

@@ -6,7 +6,10 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import LevelBadge from '@/components/LevelBadge'
-import { fetchMyStats } from '@/lib/stats'
+import { fetchMyStats, notifyProfileChanged } from '@/lib/stats'
+import Avatar from '@/components/Avatar'
+import AvatarPicker from '@/components/AvatarPicker'
+import { levelFor } from '@/lib/levels'
 
 type CourseProgress = {
   course_id: string
@@ -52,6 +55,8 @@ export default function ProfilePage() {
   const [nickname, setNickname] = useState('')
   const [showOnLeaderboards, setShowOnLeaderboards] = useState(true)
   const [totalXp, setTotalXp] = useState<number | null>(null)
+  const [avatar, setAvatar] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [fields, setFields] = useState<ProfileFields>({
     job_title: '',
@@ -84,6 +89,11 @@ export default function ProfilePage() {
         .eq('id', user.id)
         .single()
       fetchMyStats().then((s) => s && setTotalXp(s.xp.total))
+
+      const { data: avatarRow } = await supabase.from('profiles').select('avatar').eq('id', user.id).single()
+      if (avatarRow) setAvatar(avatarRow.avatar ?? null)
+      // Opened from a level-up message: show the avatar picker straight away.
+      if (new URLSearchParams(window.location.search).get('avatars')) setPickerOpen(true)
 
       if (boardRow) {
         setNickname(boardRow.display_name || '')
@@ -204,11 +214,39 @@ export default function ProfilePage() {
 
   return (
     <main className="max-w-3xl mx-auto py-16 px-4">
+      <AvatarPicker
+        open={pickerOpen}
+        current={avatar}
+        level={levelFor(totalXp ?? 0).level}
+        name={user?.user_metadata?.full_name || user?.email || null}
+        onClose={() => setPickerOpen(false)}
+        onSelect={async (id) => {
+          if (!user) return
+          const { error } = await supabase.from('profiles').update({ avatar: id }).eq('id', user.id)
+          if (error) throw error
+          setAvatar(id)
+          notifyProfileChanged()
+        }}
+      />
       <div className="rounded-xl bg-brand-surface p-6 mb-12">
         <div className="flex items-center justify-between gap-4 mb-1">
-          <h1 className="text-3xl font-medium">
-            {user?.user_metadata?.full_name || user?.email}
-          </h1>
+          <div className="flex min-w-0 items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="group relative shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+              title="Change avatar"
+              aria-label="Change avatar"
+            >
+              <Avatar avatarId={avatar} name={user?.user_metadata?.full_name || user?.email} size={64} />
+              <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-brand-muted/40 bg-brand-surface-raised text-xs text-brand-secondary group-hover:text-brand-primary">
+                ✎
+              </span>
+            </button>
+            <h1 className="text-3xl font-medium min-w-0 break-words">
+              {user?.user_metadata?.full_name || user?.email}
+            </h1>
+          </div>
           {!editing && (
             <button
               onClick={() => setEditing(true)}
