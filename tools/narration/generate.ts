@@ -67,7 +67,10 @@ function parseArgs(argv: string[]) {
   if (!args.all && !args.course && args.lessons.length === 0) throw new Error('Pass --all, --course <slug> or --lesson <id>.')
   const known = NARRATION_VOICES.map((v) => v.id as string)
   if (args.voices.length === 0) args.voices = known
-  for (const v of args.voices) if (!known.includes(v)) throw new Error(`Unknown voice "${v}". Known: ${known.join(', ')}`)
+  // --dry-run may try voices that aren't on the site yet (to audition them).
+  if (!args.dryRun) {
+    for (const v of args.voices) if (!known.includes(v)) throw new Error(`Unknown voice "${v}". Known: ${known.join(', ')}`)
+  }
   return args
 }
 
