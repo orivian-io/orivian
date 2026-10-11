@@ -15,11 +15,51 @@
 }
 
 body {
-  background:
-    radial-gradient(ellipse 900px 420px at 50% -10%, rgba(193, 153, 85, 0.10), transparent 60%),
-    var(--color-brand-bg);
+  background-color: var(--color-brand-bg);
   color: var(--color-brand-text);
   font-family: var(--font-sans), sans-serif;
+}
+
+/* Page backdrop, fixed behind everything (cards and panels sit on top):
+   1. soft light - warm gold from the top, a cool night blue from the lower
+      left - plus a fine grain so the dark never reads as flat black;
+   2. faint topographic contour lines, faded out toward the middle of the
+      screen where text sits. Lesson and exam screens draw their own plain
+      background, and the homepage turns the contours off so the world map
+      has the stage. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body::before {
+  background:
+    radial-gradient(ellipse 1100px 520px at 50% -8%, rgba(193, 153, 85, 0.11), transparent 62%),
+    radial-gradient(ellipse 950px 720px at -5% 105%, rgba(52, 86, 132, 0.14), transparent 62%),
+    radial-gradient(ellipse 760px 620px at 105% 55%, rgba(193, 153, 85, 0.045), transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.035 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+body::after {
+  background: url("/bg/contours.svg") center / cover no-repeat;
+  opacity: 0.09;
+  -webkit-mask-image: radial-gradient(ellipse 62% 72% at 50% 42%, transparent 30%, #000 82%);
+  mask-image: radial-gradient(ellipse 62% 72% at 50% 42%, transparent 30%, #000 82%);
+}
+
+body:has([data-plain-backdrop])::after {
+  display: none;
+}
+
+@media (prefers-contrast: more) {
+  body::before,
+  body::after {
+    display: none;
+  }
 }
 
 h1, h2, h3 {

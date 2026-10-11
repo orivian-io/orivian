@@ -92,7 +92,7 @@ export default function Home() {
   if (checking) return null
 
   return (
-    <main className="overflow-x-clip">
+    <main className="overflow-x-clip" data-plain-backdrop>
       {/* Hero: the map is the picture. Every glow is someone studying. */}
       <section className="relative">
         <div className="relative z-10 mx-auto max-w-6xl px-4 pt-16 sm:px-6 sm:pt-20">
