@@ -57,6 +57,9 @@ export default function LessonPlayerPage() {
   // Learner's private notes for this lesson (null while loading).
   const [notes, setNotes] = useState<Note[] | null>(null)
   const [notesOpen, setNotesOpen] = useState(false)
+
+  // Number of mini-exam questions, shown on the Start button.
+  const [questionCount, setQuestionCount] = useState<number | null>(null)
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
 
   const [questions, setQuestions] = useState<ExamQuestion[]>([])
@@ -106,6 +109,17 @@ export default function LessonPlayerPage() {
       listLessonNotes(data.id)
         .then(setNotes)
         .catch(() => setNotes([]))
+
+      // Same security-definer count the course page uses (question content
+      // itself is never readable from the browser).
+      if (course?.id) {
+        supabase
+          .rpc('lesson_question_counts', { p_course_id: course.id })
+          .then(({ data: counts }) => {
+            const match = (counts || []).find((c: { lesson_id: string; question_count: number }) => c.lesson_id === data.id)
+            if (match) setQuestionCount(match.question_count)
+          })
+      }
     }
 
     load()
@@ -376,7 +390,7 @@ export default function LessonPlayerPage() {
                       onClick={startExam}
                       className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition"
                     >
-                      Start mini-exam
+                      {questionCount ? `Start ${questionCount}-question mini-exam` : 'Start mini-exam'}
                     </button>
                   )
                 ) : (
