@@ -7,6 +7,7 @@ import Avatar from '@/components/Avatar'
 import LevelBadge from '@/components/LevelBadge'
 import {
   ACTIVE_WINDOW_MS,
+  placeName,
   fetchAdminLiveActivity,
   fetchLiveActivity,
   timeAgo,
@@ -18,13 +19,7 @@ import {
 const REFRESH_MS = 30_000
 
 function regionLabel(key: string | null) {
-  if (!key) return '-'
-  if (key.startsWith('US-')) return `${key.slice(3)}, United States`
-  try {
-    return new Intl.DisplayNames(['en'], { type: 'region' }).of(key) || key
-  } catch {
-    return key
-  }
+  return placeName(key) ?? '-'
 }
 
 // Refreshes every 30 seconds while the page is visible.

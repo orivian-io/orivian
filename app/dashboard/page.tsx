@@ -4,203 +4,322 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import type { User } from '@supabase/supabase-js'
-import LiveActivity from '@/components/LiveActivity'
+import LevelBadge from '@/components/LevelBadge'
+import LiveGlance from '@/components/LiveGlance'
+import { loadHome, type HomeCourse, type HomeData } from '@/lib/home'
+import { fetchMyStats, percent, todayIn, type MyStats } from '@/lib/stats'
 
-type CourseProgress = {
-  course_id: string
-  slug: string
-  title: string
-  description: string
-  totalLessons: number
-  completedLessons: number
+const lessonHref = (c: HomeCourse) => (c.next ? `/learn/${c.slug}/${c.next.id}` : `/courses/${c.slug}`)
+
+function pct(c: HomeCourse) {
+  return c.total > 0 ? Math.round((c.completed / c.total) * 100) : 0
+}
+
+function lessonMeta(c: HomeCourse) {
+  if (!c.next) return null
+  const parts = [`about ${Math.max(1, c.next.minutes)} min`]
+  if (c.next.questions > 0) parts.push(`${c.next.questions} questions`)
+  return parts.join(', ')
+}
+
+function greetingFor(hour: number) {
+  if (hour < 5) return 'Up late'
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
+function streakLine(stats: MyStats | null) {
+  if (!stats) return ''
+  const { current, studied_today } = stats.streak
+  if (studied_today) {
+    return current > 1 ? `You've studied today. That's ${current} days in a row.` : "You've studied today. Come back tomorrow to start a streak."
+  }
+  if (current > 0) return `Your ${current}-day streak is still open. One lesson today keeps it going.`
+  return 'Finish one lesson today to start a streak.'
+}
+
+// The last 7 days in the learner's timezone, oldest first.
+function lastSevenDays(stats: MyStats) {
+  const today = todayIn(stats.timezone)
+  const studied = new Map(stats.days.map((d) => [d.day, d.lessons > 0 || d.xp > 0]))
+  const base = new Date(`${today}T12:00:00Z`)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(base)
+    d.setUTCDate(base.getUTCDate() - (6 - i))
+    const key = d.toISOString().slice(0, 10)
+    return {
+      key,
+      letter: d.toLocaleDateString('en-US', { weekday: 'narrow', timeZone: 'UTC' }),
+      label: d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }),
+      studied: studied.get(key) ?? false,
+      today: key === today,
+    }
+  })
+}
+
+// Weakest domain with enough answers to mean something.
+function focusArea(stats: MyStats | null) {
+  if (!stats) return null
+  let best: { course: string; slug: string; section: string; accuracy: number; answered: number } | null = null
+  for (const c of stats.courses) {
+    for (const s of c.sections) {
+      if (s.answered < 8) continue
+      const accuracy = Math.round((s.correct / s.answered) * 100)
+      if (accuracy >= 75) continue
+      if (!best || accuracy < best.accuracy) best = { course: c.title, slug: c.slug, section: s.title, accuracy, answered: s.answered }
+    }
+  }
+  return best
+}
+
+function ProgressBar({ value, label }: { value: number; label: string }) {
+  return (
+    <div
+      className="h-1.5 overflow-hidden rounded-full bg-brand-muted/20"
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value}
+      aria-label={label}
+    >
+      <div className="h-full rounded-full bg-brand-primary" style={{ width: `${Math.max(value, value > 0 ? 2 : 0)}%` }} />
+    </div>
+  )
+}
+
+function UpNext({ course }: { course: HomeCourse }) {
+  const done = !course.next
+  return (
+    <section className="relative flex flex-col overflow-hidden rounded-2xl border border-brand-primary/30 bg-gradient-to-br from-brand-surface-raised to-brand-surface p-6 sm:p-8">
+      <p className="text-sm text-brand-primary">
+        {done ? 'Course complete' : course.next?.started ? 'Pick up where you left off' : 'Up next'}
+      </p>
+      <p className="mt-1 text-sm text-brand-secondary">
+        {course.title}
+        {course.next?.section ? `, ${course.next.section}` : ''}
+      </p>
+      <h2 className="mt-4 max-w-[28ch] text-2xl font-medium leading-snug sm:text-3xl">
+        {done ? `You've finished every lesson in ${course.title}.` : course.next?.title}
+      </h2>
+      {!done && <p className="mt-2 text-sm text-brand-secondary">{lessonMeta(course)}</p>}
+
+      <div className="mt-auto flex flex-col gap-5 pt-8 sm:flex-row sm:items-end sm:justify-between">
+        <Link
+          href={lessonHref(course)}
+          className="inline-flex justify-center rounded-md bg-brand-primary px-7 py-3 font-medium text-black transition hover:bg-brand-primary-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+        >
+          {done ? 'Review the course' : course.next?.started ? 'Continue lesson' : 'Start lesson'}
+        </Link>
+        <div className="w-full sm:w-56">
+          <p className="mb-1.5 text-right text-xs text-brand-secondary tabular-nums">
+            {course.completed} of {course.total} lessons
+          </p>
+          <ProgressBar value={pct(course)} label={`${course.title} progress`} />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Momentum({ stats }: { stats: MyStats }) {
+  const week = lastSevenDays(stats)
+  const accuracy = percent(stats.accuracy.week)
+  return (
+    <section className="rounded-2xl bg-brand-surface p-6">
+      <LevelBadge xp={stats.xp.total} variant="card" />
+
+      <div className="mt-6">
+        <p className="mb-2 text-sm text-brand-secondary">
+          {stats.streak.current > 0 ? `${stats.streak.current}-day streak` : 'This week'}
+        </p>
+        <ol className="grid grid-cols-7 gap-1.5">
+          {week.map((d) => (
+            <li key={d.key} className="flex flex-col items-center gap-1">
+              <span
+                className={`flex h-8 w-full items-center justify-center rounded-md text-xs ${
+                  d.studied ? 'bg-brand-primary text-black' : 'bg-brand-muted/15 text-brand-muted'
+                } ${d.today ? 'ring-1 ring-brand-primary ring-offset-2 ring-offset-brand-surface' : ''}`}
+                title={`${d.label}: ${d.studied ? 'studied' : 'no study'}`}
+              >
+                {d.studied ? '✓' : ''}
+              </span>
+              <span className={`text-[11px] ${d.today ? 'text-brand-text' : 'text-brand-muted'}`}>{d.letter}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-brand-muted/15 pt-5">
+        <div>
+          <dt className="text-xs text-brand-secondary">XP this week</dt>
+          <dd className="mt-0.5 text-xl tabular-nums">{stats.xp.week.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-brand-secondary">Accuracy this week</dt>
+          <dd className="mt-0.5 text-xl tabular-nums">{accuracy === null ? 'None yet' : `${accuracy}%`}</dd>
+        </div>
+      </dl>
+      <Link href="/stats" className="mt-5 inline-block text-sm text-brand-secondary hover:text-brand-primary">
+        All your stats
+      </Link>
+    </section>
+  )
+}
+
+function CourseList({ courses }: { courses: HomeCourse[] }) {
+  return (
+    <ul className="divide-y divide-brand-muted/15 rounded-xl bg-brand-surface">
+      {courses.map((c) => (
+        <li key={c.id} className="grid gap-x-6 gap-y-2 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
+          <div className="min-w-0">
+            <Link href={`/courses/${c.slug}`} className="font-display text-lg hover:text-brand-primary">
+              {c.title}
+            </Link>
+            <p className="mt-0.5 truncate text-sm text-brand-secondary">
+              {c.next ? `Next: ${c.next.title}` : 'All lessons complete'}
+            </p>
+            <div className="mt-3 flex items-center gap-3">
+              <div className="flex-1">
+                <ProgressBar value={pct(c)} label={`${c.title} progress`} />
+              </div>
+              <span className="w-24 text-right text-xs text-brand-muted tabular-nums">
+                {c.completed} of {c.total}
+              </span>
+            </div>
+          </div>
+          <Link
+            href={lessonHref(c)}
+            className="w-24 justify-self-start rounded-md border border-brand-muted/40 py-2 text-center text-sm transition hover:border-brand-primary hover:text-brand-primary sm:justify-self-end"
+          >
+            {!c.next ? 'Review' : c.completed === 0 && !c.next.started ? 'Start' : 'Resume'}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null)
-  const [enrolledCourses, setEnrolledCourses] = useState<CourseProgress[]>([])
-  const [otherCourses, setOtherCourses] = useState<{ slug: string; title: string; description: string }[]>([])
-  const [loading, setLoading] = useState(true)
+  const [home, setHome] = useState<HomeData | null>(null)
+  const [stats, setStats] = useState<MyStats | null>(null)
+  const [greeting, setGreeting] = useState('Welcome back')
+  const [firstName, setFirstName] = useState('')
   const router = useRouter()
 
   useEffect(() => {
+    let cancelled = false
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-
       if (!user) {
         router.push('/login')
         return
       }
-      setUser(user)
-
-      const { data: allCourses } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('published', true)
-
-      const { data: enrollments } = await supabase
-        .from('enrollments')
-        .select('course_id')
-        .eq('user_id', user.id)
-
-      const enrolledIds = new Set(enrollments?.map((e) => e.course_id))
-
-      const { data: allProgress } = await supabase
-        .from('progress')
-        .select('lesson_id')
-        .eq('user_id', user.id)
-
-      const completedLessonIds = new Set(allProgress?.map((p) => p.lesson_id))
-
-      const enrolled: CourseProgress[] = []
-      const notEnrolled: { slug: string; title: string; description: string }[] = []
-
-      for (const course of allCourses || []) {
-        if (enrolledIds.has(course.id)) {
-          const { data: lessons } = await supabase
-            .from('lessons')
-            .select('id')
-            .eq('course_id', course.id)
-
-          const totalLessons = lessons?.length || 0
-          const completedLessons = lessons?.filter((l) => completedLessonIds.has(l.id)).length || 0
-
-          enrolled.push({
-            course_id: course.id,
-            slug: course.slug,
-            title: course.title,
-            description: course.description,
-            totalLessons,
-            completedLessons,
-          })
-        } else {
-          notEnrolled.push({
-            slug: course.slug,
-            title: course.title,
-            description: course.description,
-          })
-        }
-      }
-
-      setEnrolledCourses(enrolled)
-      setOtherCourses(notEnrolled)
-      setLoading(false)
+      setFirstName((user.user_metadata?.full_name || '').split(' ')[0])
+      setGreeting(greetingFor(new Date().getHours()))
+      const [h, s] = await Promise.all([loadHome(user.id), fetchMyStats()])
+      if (cancelled) return
+      setHome(h)
+      setStats(s)
     }
-
     load()
+    return () => {
+      cancelled = true
+    }
   }, [router])
 
-  if (loading) {
+  if (!home) {
     return (
-      <main className="max-w-5xl mx-auto py-24 px-6 text-center text-sm text-brand-secondary">
-        Loading your dashboard…
-      </main>
+      <main className="mx-auto max-w-6xl px-6 py-24 text-center text-sm text-brand-secondary">Loading your home…</main>
     )
   }
 
-  const firstName = user?.user_metadata?.full_name?.split(' ')[0]
-
-  const inProgress = enrolledCourses.filter((c) => c.completedLessons < c.totalLessons)
-  const completed = enrolledCourses.filter((c) => c.totalLessons > 0 && c.completedLessons === c.totalLessons)
-  const lessonsCompleted = enrolledCourses.reduce((sum, c) => sum + c.completedLessons, 0)
-
-  const stats = [
-    { label: 'In progress', value: inProgress.length },
-    { label: 'Completed', value: completed.length },
-    { label: 'Lessons completed', value: lessonsCompleted },
-  ]
+  const [current, ...others] = home.enrolled
+  const focus = focusArea(stats)
 
   return (
-    <main className="max-w-5xl mx-auto py-14 px-6">
-      <div className="mb-10">
-        <h1 className="text-4xl font-medium mb-2">
-          Welcome back{firstName ? `, ${firstName}` : ''}
+    <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-14">
+      <header className="mb-8">
+        <h1 className="text-3xl font-medium sm:text-4xl">
+          {greeting}
+          {firstName ? `, ${firstName}` : ''}
         </h1>
-        <p className="text-brand-secondary">
-          {enrolledCourses.length === 0
-            ? "You haven't started a course yet — pick one below."
-            : `${inProgress.length} course${inProgress.length === 1 ? '' : 's'} in progress.`}
+        <p className="mt-2 text-brand-secondary">
+          {current ? streakLine(stats) : 'Pick a course to start. Your progress, notes and streak save automatically.'}
         </p>
-      </div>
+      </header>
 
-      {enrolledCourses.length > 0 && (
-        <div className="grid grid-cols-3 gap-3 mb-12">
-          {stats.map((s) => (
-            <div key={s.label} className="rounded-xl bg-brand-surface border border-white/5 p-5">
-              <p className="text-2xl sm:text-3xl font-medium text-brand-primary font-display">{s.value}</p>
-              <p className="text-xs sm:text-sm text-brand-secondary mt-1">{s.label}</p>
-            </div>
-          ))}
+      {current ? (
+        <div className="grid gap-5 lg:grid-cols-[1.75fr_1fr]">
+          <UpNext course={current} />
+          {stats && <Momentum stats={stats} />}
         </div>
-      )}
-
-      {inProgress.length > 0 && (
-        <div className="mb-14">
-          <h2 className="text-sm font-medium text-brand-secondary uppercase tracking-wide mb-4">
-            Continue where you left off
-          </h2>
-          <div className="space-y-3">
-            {inProgress.map((c) => {
-              const percent = c.totalLessons > 0
-                ? Math.round((c.completedLessons / c.totalLessons) * 100)
-                : 0
-              return (
-                <Link
-                  key={c.course_id}
-                  href={`/courses/${c.slug}`}
-                  className="group flex items-center gap-5 rounded-xl bg-brand-surface border border-white/5 hover:border-brand-primary/30 hover:bg-brand-surface-raised transition p-5"
-                >
-                  <div className="relative h-14 w-14 shrink-0 rounded-full flex items-center justify-center"
-                    style={{
-                      background: `conic-gradient(var(--color-brand-primary) ${percent * 3.6}deg, var(--color-brand-surface-raised) 0deg)`,
-                    }}
-                  >
-                    <div className="h-11 w-11 rounded-full bg-brand-surface flex items-center justify-center text-xs font-medium text-brand-primary">
-                      {percent}%
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium group-hover:text-brand-primary transition truncate">
-                      {c.title}
-                    </h3>
-                    <p className="text-sm text-brand-secondary">
-                      {c.completedLessons} of {c.totalLessons} lessons complete
-                    </p>
-                  </div>
-                  <span className="hidden sm:flex shrink-0 items-center gap-1 text-sm text-brand-secondary group-hover:text-brand-primary transition">
-                    Resume
-                    <span aria-hidden="true" className="transition group-hover:translate-x-0.5">→</span>
-                  </span>
+      ) : (
+        <section>
+          <h2 className="mb-4 text-xl font-medium">Choose your first course</h2>
+          <ul className="divide-y divide-brand-muted/15 rounded-xl bg-brand-surface">
+            {home.explore.map((c) => (
+              <li key={c.slug}>
+                <Link href={`/courses/${c.slug}`} className="block p-5 hover:bg-brand-surface-raised">
+                  <span className="font-display text-lg">{c.title}</span>
+                  <span className="mt-1 block text-sm text-brand-secondary line-clamp-2">{c.description}</span>
                 </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {otherCourses.length > 0 && (
-        <div>
-          <h2 className="text-sm font-medium text-brand-secondary uppercase tracking-wide mb-4">
-            {enrolledCourses.length === 0 ? 'Available courses' : 'Explore more'}
-          </h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {otherCourses.map((c) => (
-              <Link
-                key={c.slug}
-                href={`/courses/${c.slug}`}
-                className="rounded-xl bg-brand-surface border border-white/5 hover:border-brand-primary/30 hover:bg-brand-surface-raised transition p-5"
-              >
-                <h3 className="font-medium mb-1">{c.title}</h3>
-                <p className="text-sm text-brand-secondary line-clamp-2">{c.description}</p>
-              </Link>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </section>
       )}
 
-      <div className="mt-14">
-        <LiveActivity />
+      <div className="mt-12 grid gap-10 lg:grid-cols-[1.75fr_1fr]">
+        <div className="min-w-0 space-y-10">
+          {others.length > 0 && (
+            <section>
+              <h2 className="mb-4 text-xl font-medium">Your other courses</h2>
+              <CourseList courses={others} />
+            </section>
+          )}
+
+          {current && home.explore.length > 0 && (
+            <section>
+              <h2 className="mb-1 text-xl font-medium">More to study</h2>
+              <p className="mb-4 text-sm text-brand-secondary">Free like everything else here.</p>
+              <ul className="flex flex-wrap gap-2">
+                {home.explore.map((c) => (
+                  <li key={c.slug}>
+                    <Link
+                      href={`/courses/${c.slug}`}
+                      className="inline-block rounded-full border border-brand-muted/30 px-4 py-2 text-sm text-brand-secondary transition hover:border-brand-primary hover:text-brand-primary"
+                      title={c.description}
+                    >
+                      {c.title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+
+        <aside className="space-y-5">
+          {focus && (
+            <section className="rounded-xl border border-brand-muted/20 p-5">
+              <h2 className="font-medium">Worth a second look</h2>
+              <p className="mt-2 text-sm leading-relaxed text-brand-secondary">
+                You&apos;re at <span className="text-brand-text">{focus.accuracy}%</span> on{' '}
+                <span className="text-brand-text">{focus.section}</span> across {focus.answered} questions in{' '}
+                {focus.course}.
+              </p>
+              <Link
+                href={`/courses/${focus.slug}`}
+                className="mt-3 inline-block text-sm text-brand-primary hover:underline"
+              >
+                Review this domain
+              </Link>
+            </section>
+          )}
+          <LiveGlance />
+        </aside>
       </div>
     </main>
   )
-}
+}

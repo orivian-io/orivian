@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import type { MapRegion } from '@/lib/live'
+import { placeName, type MapRegion } from '@/lib/live'
 
 type WorldMap = {
   width: number
@@ -22,22 +22,24 @@ function loadMap() {
   return mapPromise
 }
 
-function regionName(key: string, map: WorldMap) {
-  if (!key.startsWith('US-')) {
-    try {
-      return new Intl.DisplayNames(['en'], { type: 'region' }).of(key) || map.names[key] || key
-    } catch {
-      return map.names[key] || key
-    }
-  }
-  return map.names[key] || key
+const GOLD = '#E4C473'
+
+type Props = {
+  regions: MapRegion[]
+  // Which period the soft dots cover. Visitors see the last 30 days so the
+  // map reflects the whole community, not just this week.
+  span?: 'week' | 'month'
+  // "panel" sits inside a card with a legend; "hero" is the full-bleed
+  // homepage version (lights-at-night glow, no legend).
+  variant?: 'panel' | 'hero'
 }
 
 // World map of study activity: US learners by state, everyone else by
-// country. Bright pulsing dots = studying now; soft dots = studied this week.
-export default function ActivityMap({ regions }: { regions: MapRegion[] }) {
+// country. Bright pulsing dots = studying now; soft dots = studied recently.
+export default function ActivityMap({ regions, span = 'week', variant = 'panel' }: Props) {
   const [map, setMap] = useState<WorldMap | null>(null)
   const [hover, setHover] = useState<string | null>(null)
+  const hero = variant === 'hero'
 
   useEffect(() => {
     let cancelled = false
@@ -47,6 +49,7 @@ export default function ActivityMap({ regions }: { regions: MapRegion[] }) {
     }
   }, [])
 
+  const spanCount = (r: MapRegion) => (span === 'month' ? (r.month ?? r.week) : r.week)
   const byKey = useMemo(() => new Map(regions.map((r) => [r.key, r])), [regions])
   const activeCountries = useMemo(() => {
     const set = new Set<string>()
@@ -55,24 +58,39 @@ export default function ActivityMap({ regions }: { regions: MapRegion[] }) {
   }, [regions])
 
   if (!map) {
-    return <div className="aspect-[2/1] w-full animate-pulse rounded-lg bg-brand-surface-raised/40" />
+    return <div className={`aspect-[2/1] w-full ${hero ? '' : 'animate-pulse rounded-lg bg-brand-surface-raised/40'}`} />
   }
 
   const hovered = hover ? byKey.get(hover) : null
   const hoveredPoint = hover ? map.points[hover] : null
   const dots = regions
-    .filter((r) => map.points[r.key])
-    .sort((a, b) => a.now - b.now || a.week - b.week) // draw active-now dots on top
+    .filter((r) => map.points[r.key] && (r.now > 0 || spanCount(r) > 0))
+    .sort((a, b) => a.now - b.now || spanCount(a) - spanCount(b)) // draw active-now dots on top
+
+  const land = hero ? '#171B21' : '#1C2025'
+  const spanLabel = span === 'month' ? 'this month' : 'this week'
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${map.width} ${map.height}`} className="block h-auto w-full" role="img" aria-label="Map of where learners are studying">
+      <svg
+        viewBox={`0 0 ${map.width} ${map.height}`}
+        className="block h-auto w-full"
+        role="img"
+        aria-label="Map of where learners are studying"
+      >
+        <defs>
+          <radialGradient id="study-glow">
+            <stop offset="0%" stopColor={GOLD} stopOpacity="0.55" />
+            <stop offset="45%" stopColor={GOLD} stopOpacity="0.16" />
+            <stop offset="100%" stopColor={GOLD} stopOpacity="0" />
+          </radialGradient>
+        </defs>
         <g>
           {map.countries.map((c, i) => (
             <path
               key={c.id || `x${i}`}
               d={c.d}
-              fill={activeCountries.has(c.id) ? 'rgba(193,153,85,0.16)' : '#1C2025'}
+              fill={activeCountries.has(c.id) ? 'rgba(193,153,85,0.14)' : land}
               stroke="#0A0C0F"
               strokeWidth={0.5}
             />
@@ -83,7 +101,7 @@ export default function ActivityMap({ regions }: { regions: MapRegion[] }) {
             <path
               key={s.id}
               d={s.d}
-              fill={byKey.has(s.id) ? 'rgba(193,153,85,0.28)' : 'transparent'}
+              fill={byKey.has(s.id) ? 'rgba(193,153,85,0.24)' : 'transparent'}
               stroke="#0A0C0F"
               strokeWidth={0.35}
             />
@@ -92,9 +110,9 @@ export default function ActivityMap({ regions }: { regions: MapRegion[] }) {
         <g>
           {dots.map((r) => {
             const [x, y] = map.points[r.key]
-            const count = r.now > 0 ? r.now : r.week
-            const radius = Math.min(9, 2.6 + Math.sqrt(count) * 1.6)
             const live = r.now > 0
+            const count = live ? r.now : spanCount(r)
+            const radius = Math.min(9, 2.6 + Math.sqrt(count) * 1.6)
             return (
               <g
                 key={r.key}
@@ -103,11 +121,12 @@ export default function ActivityMap({ regions }: { regions: MapRegion[] }) {
                 onFocus={() => setHover(r.key)}
                 onBlur={() => setHover(null)}
                 tabIndex={0}
-                aria-label={`${regionName(r.key, map)}: ${r.now} studying now, ${r.week} this week`}
+                aria-label={`${placeName(r.key, map.names)}: ${r.now} studying now, ${spanCount(r)} ${spanLabel}`}
                 className="cursor-default outline-none"
               >
+                {hero && <circle cx={x} cy={y} r={radius * (live ? 4.5 : 3.2)} fill="url(#study-glow)" />}
                 {live && (
-                  <circle cx={x} cy={y} r={radius} fill="none" stroke="#E4C473" strokeWidth={1.2}>
+                  <circle cx={x} cy={y} r={radius} fill="none" stroke={GOLD} strokeWidth={1.2} className="motion-reduce:hidden">
                     <animate attributeName="r" from={radius} to={radius + 9} dur="2s" repeatCount="indefinite" />
                     <animate attributeName="opacity" from="0.9" to="0" dur="2s" repeatCount="indefinite" />
                   </circle>
@@ -116,7 +135,7 @@ export default function ActivityMap({ regions }: { regions: MapRegion[] }) {
                   cx={x}
                   cy={y}
                   r={radius}
-                  fill={live ? '#E4C473' : 'rgba(193,153,85,0.55)'}
+                  fill={live ? GOLD : 'rgba(193,153,85,0.6)'}
                   stroke="#0A0C0F"
                   strokeWidth={1}
                 />
@@ -132,22 +151,24 @@ export default function ActivityMap({ regions }: { regions: MapRegion[] }) {
           className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+12px)] whitespace-nowrap rounded-md border border-brand-muted/30 bg-brand-surface-raised px-2.5 py-1.5 text-xs shadow-lg"
           style={{ left: `${(hoveredPoint[0] / map.width) * 100}%`, top: `${(hoveredPoint[1] / map.height) * 100}%` }}
         >
-          <p className="font-medium text-brand-text">{regionName(hovered.key, map)}</p>
+          <p className="font-medium text-brand-text">{placeName(hovered.key, map.names)}</p>
           <p className="text-brand-secondary tabular-nums">
-            {hovered.now > 0 && <span className="text-brand-primary">{hovered.now} studying now · </span>}
-            {hovered.day} today · {hovered.week} this week
+            {hovered.now > 0 && <span className="text-brand-primary">{hovered.now} studying now, </span>}
+            {hovered.day} today, {spanCount(hovered)} {spanLabel}
           </p>
         </div>
       )}
 
-      <div className="mt-2 flex items-center justify-end gap-4 text-[11px] text-brand-muted">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#E4C473]" /> Studying now
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-brand-primary/55" /> Studied this week
-        </span>
-      </div>
+      {!hero && (
+        <div className="mt-2 flex items-center justify-end gap-4 text-[11px] text-brand-muted">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#E4C473]" /> Studying now
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-brand-primary/60" /> Studied {spanLabel}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

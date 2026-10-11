@@ -13,7 +13,7 @@ export type LivePerson = {
   is_you?: boolean
 }
 
-export type MapRegion = { key: string; now: number; day: number; week: number }
+export type MapRegion = { key: string; now: number; day: number; week: number; month?: number }
 
 export type LiveActivity = {
   generated_at: string
@@ -38,6 +38,45 @@ export type AdminPerson = {
 }
 
 export type AdminLiveActivity = { generated_at: string; people: AdminPerson[]; map: MapRegion[] }
+
+// Anonymous, aggregate activity for signed-out visitors (0015).
+export type PulseItem = { at: string; lesson: string; course: string; course_slug: string | null; place: string | null }
+
+export type PublicPulse = {
+  generated_at: string
+  totals: { now: number; day: number; week: number; month: number; countries: number; lessons_week: number }
+  map: MapRegion[]
+  feed: PulseItem[]
+}
+
+export async function fetchPublicPulse(): Promise<PublicPulse | null> {
+  const { data, error } = await supabase.rpc('public_activity_pulse')
+  if (error || !data) return null
+  return data as PublicPulse
+}
+
+// "Texas" / "Germany" for a map key like US-TX or DE.
+export function placeName(key: string | null | undefined, names?: Record<string, string>): string | null {
+  if (!key) return null
+  if (key.startsWith('US-')) return names?.[key] || US_STATES[key.slice(3)] || key.slice(3)
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' }).of(key) || names?.[key] || key
+  } catch {
+    return names?.[key] || key
+  }
+}
+
+const US_STATES: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut',
+  DE: 'Delaware', DC: 'Washington, D.C.', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois',
+  IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana',
+  NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York',
+  NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania',
+  RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah',
+  VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+  PR: 'Puerto Rico',
+}
 
 export const ACTIVE_WINDOW_MS = 2 * 60 * 1000
 
