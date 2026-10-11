@@ -46,6 +46,9 @@ export default function ProfilePage() {
   const router = useRouter()
 
   const [editing, setEditing] = useState(false)
+  // Leaderboard identity: optional nickname, and whether to appear at all.
+  const [nickname, setNickname] = useState('')
+  const [showOnLeaderboards, setShowOnLeaderboards] = useState(true)
   const [saving, setSaving] = useState(false)
   const [fields, setFields] = useState<ProfileFields>({
     job_title: '',
@@ -69,6 +72,18 @@ export default function ProfilePage() {
         .select('job_title, company, bio, linkedin_url')
         .eq('id', user.id)
         .single()
+
+      // Separate query so the rest of the profile still loads if these
+      // newer columns are unavailable.
+      const { data: boardRow } = await supabase
+        .from('profiles')
+        .select('display_name, show_on_leaderboards')
+        .eq('id', user.id)
+        .single()
+      if (boardRow) {
+        setNickname(boardRow.display_name || '')
+        setShowOnLeaderboards(boardRow.show_on_leaderboards !== false)
+      }
 
       if (profileRow) {
         setFields({
@@ -162,6 +177,14 @@ export default function ProfilePage() {
       })
       .eq('id', user.id)
 
+    await supabase
+      .from('profiles')
+      .update({
+        display_name: nickname.trim() || null,
+        show_on_leaderboards: showOnLeaderboards,
+      })
+      .eq('id', user.id)
+
     setSaving(false)
     setEditing(false)
   }
@@ -220,6 +243,26 @@ export default function ProfilePage() {
               onChange={(e) => setFields({ ...fields, linkedin_url: e.target.value })}
               className="w-full border border-brand-muted/40 rounded-md p-2 bg-brand-surface-raised text-sm"
             />
+            <div className="rounded-md border border-brand-muted/30 p-3 space-y-2">
+              <p className="text-xs uppercase tracking-wide text-brand-secondary">Leaderboards</p>
+              <input
+                type="text"
+                maxLength={40}
+                placeholder="Nickname (optional - shown instead of your name)"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                className="w-full border border-brand-muted/40 rounded-md p-2 bg-brand-surface-raised text-sm"
+              />
+              <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showOnLeaderboards}
+                  onChange={(e) => setShowOnLeaderboards(e.target.checked)}
+                  className="h-4 w-4 accent-[#C19955]"
+                />
+                Show me on Orivian leaderboards
+              </label>
+            </div>
             <textarea
               placeholder="Short bio (optional)"
               value={fields.bio}
@@ -253,6 +296,11 @@ export default function ProfilePage() {
               </p>
             )}
             {fields.bio && <p className="text-sm text-brand-secondary mb-2">{fields.bio}</p>}
+            <p className="text-xs text-brand-muted mb-2">
+              {showOnLeaderboards
+                ? `On leaderboards as “${nickname.trim() || user?.user_metadata?.full_name || 'your name'}”`
+                : 'Hidden from leaderboards'}
+            </p>
             {fields.linkedin_url && (
               <a
                 href={fields.linkedin_url}

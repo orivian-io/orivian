@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
+import NavStreak from '@/components/NavStreak'
 
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null)
@@ -26,17 +27,21 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="flex items-center justify-between px-6 py-4 border-b border-brand-muted/20">
+    <nav className="flex items-center justify-between gap-4 px-6 py-4 border-b border-brand-muted/20">
       <Link href="/" className="flex items-center gap-2">
         <img src="/logo.svg" alt="Orivian" className="h-8 w-auto" />
         <span className="font-display text-xl font-medium tracking-tight text-brand-primary">Orivian</span>
       </Link>
-      <div className="flex items-center gap-6 text-sm">
+      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 sm:gap-x-6 text-sm">
         <Link href="/courses" className="hover:text-brand-primary transition">
           Courses
         </Link>
         {user ? (
           <>
+            <NavStreak userId={user.id} />
+            <Link href="/stats" className="hover:text-brand-primary transition">
+              Stats
+            </Link>
             <Link href="/notes" className="hover:text-brand-primary transition">
               Notes
             </Link>
