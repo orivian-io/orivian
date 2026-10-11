@@ -428,7 +428,8 @@ export default function CoursePage() {
                   const isComplete = completedIds.has(lesson.id)
                   const isStarted = !isComplete && startedIds.has(lesson.id)
                   const bestScore = bestScoreByLesson.get(lesson.id)
-                  const minutes = lessonMinutes(lesson, questionCounts.get(lesson.id) || 0)
+                  const questionCount = questionCounts.get(lesson.id) || 0
+                  const minutes = lessonMinutes(lesson, questionCount)
 
                   let statusLabel = 'Start lesson →'
                   let statusClass = 'text-sm text-brand-secondary'
@@ -445,8 +446,15 @@ export default function CoursePage() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-baseline gap-x-2">
                           <h3 className="font-medium">{lesson.title}</h3>
-                          {minutes > 0 && (
-                            <span className="text-xs text-brand-secondary whitespace-nowrap">{formatDuration(minutes)}</span>
+                          {(minutes > 0 || questionCount > 0) && (
+                            <span className="text-xs text-brand-secondary whitespace-nowrap">
+                              {[
+                                minutes > 0 ? formatDuration(minutes) : null,
+                                questionCount > 0 ? `${questionCount} question${questionCount === 1 ? '' : 's'}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </span>
                           )}
                         </div>
                         {lesson.summary && (
