@@ -8,6 +8,7 @@ import { useStudyTimer } from '@/lib/use-study-timer'
 import { blockToSpeechText, type ContentBlock } from '@/lib/narration'
 import { prefetchNarration, startNarration, stopNarration } from '@/lib/narrator'
 import { createReadAlong } from '@/lib/read-along'
+import { notifyProgress } from '@/lib/stats'
 import { createNote, listLessonNotes, type Note } from '@/lib/notes'
 import LessonNotes from '@/components/LessonNotes'
 import SaveSelectionButton from '@/components/SaveSelectionButton'
@@ -194,6 +195,7 @@ export default function LessonPlayerPage() {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ lessonId }),
     })
+    notifyProgress()
 
     router.push(`/courses/${lesson?.course?.slug || courseSlug}`)
   }
@@ -263,6 +265,7 @@ export default function LessonPlayerPage() {
 
     setResult(json)
     setPhase('results')
+    notifyProgress()
   }
 
   const allAnswered = questions.length > 0 && questions.every((q) => (answers[q.id] || []).length > 0)

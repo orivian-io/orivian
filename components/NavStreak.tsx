@@ -3,27 +3,71 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import StreakCalendar from '@/components/StreakCalendar'
+import LevelBadge from '@/components/LevelBadge'
+import { levelFor, type LevelInfo } from '@/lib/levels'
 import { fetchMyStats, nextTier, syncTimezone, tierFor, todayIn, type MyStats } from '@/lib/stats'
 
+const LEVEL_KEY = 'orivian.level.'
+
+function readSeenLevel(userId: string): number | null {
+  try {
+    const v = localStorage.getItem(LEVEL_KEY + userId)
+    return v ? Number(v) : null
+  } catch {
+    return null
+  }
+}
+
+function writeSeenLevel(userId: string, level: number) {
+  try {
+    localStorage.setItem(LEVEL_KEY + userId, String(level))
+  } catch {
+    // storage blocked - level-up messages just won't be remembered
+  }
+}
+
 // 🔥 streak counter in the top menu. Opens a pop-up with the activity
-// calendar, current and longest streak, and the next milestone.
+// calendar, current and longest streak, level, and the next milestone.
+// Refreshes when a lesson or exam is finished, and celebrates level-ups.
 export default function NavStreak({ userId }: { userId: string }) {
   const [stats, setStats] = useState<MyStats | null>(null)
   const [open, setOpen] = useState(false)
+  const [levelUp, setLevelUp] = useState<LevelInfo | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
+    const apply = (s: MyStats | null) => {
+      if (cancelled || !s) return
+      setStats(s)
+      const info = levelFor(s.xp.total)
+      const seen = readSeenLevel(userId)
+      // Only celebrate a level reached since we last looked (not on first visit).
+      if (seen !== null && info.level > seen) setLevelUp(info)
+      if (seen === null || info.level !== seen) writeSeenLevel(userId, info.level)
+    }
+
     syncTimezone(userId)
       .catch(() => {})
       .then(() => fetchMyStats())
-      .then((s) => {
-        if (!cancelled) setStats(s)
-      })
+      .then(apply)
+
+    const onProgress = () => {
+      // Give the server a moment to record the attempt before re-reading.
+      setTimeout(() => fetchMyStats().then(apply), 800)
+    }
+    window.addEventListener('orivian:progress', onProgress)
     return () => {
       cancelled = true
+      window.removeEventListener('orivian:progress', onProgress)
     }
   }, [userId])
+
+  useEffect(() => {
+    if (!levelUp) return
+    const t = setTimeout(() => setLevelUp(null), 7000)
+    return () => clearTimeout(t)
+  }, [levelUp])
 
   useEffect(() => {
     if (!open) return
@@ -71,6 +115,9 @@ export default function NavStreak({ userId }: { userId: string }) {
 
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-brand-muted/20 bg-brand-surface-raised p-4 shadow-2xl shadow-black/50">
+          <div className="mb-4">
+            <LevelBadge xp={stats.xp.total} variant="card" />
+          </div>
           <div className="mb-4 grid grid-cols-2 gap-2 text-center">
             <div className="rounded-lg bg-brand-surface p-3">
               <p className="text-2xl font-medium text-brand-primary tabular-nums">
@@ -103,6 +150,29 @@ export default function NavStreak({ userId }: { userId: string }) {
           >
             All my stats →
           </Link>
+        </div>
+      )}
+
+      {levelUp && (
+        <div
+          role="status"
+          className="fixed bottom-6 left-1/2 z-[80] w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-brand-primary/60 bg-brand-surface-raised px-5 py-4 text-center shadow-2xl shadow-black/60"
+        >
+          <button
+            type="button"
+            onClick={() => setLevelUp(null)}
+            className="absolute right-3 top-2 text-brand-muted hover:text-brand-text"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+          <p className="text-3xl mb-1" aria-hidden="true">
+            🎉 {levelUp.emoji}
+          </p>
+          <p className="font-medium text-brand-primary">Level up!</p>
+          <p className="text-sm text-brand-text">
+            You reached Level {levelUp.level} · {levelUp.title}
+          </p>
         </div>
       )}
     </div>

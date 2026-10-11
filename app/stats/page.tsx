@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import StreakCalendar from '@/components/StreakCalendar'
 import AccuracyTrend from '@/components/AccuracyTrend'
+import LevelBadge from '@/components/LevelBadge'
 import {
   STREAK_TIERS,
   fetchLeaderboard,
@@ -75,6 +76,11 @@ export default function StatsPage() {
             ? `Complete a lesson today to keep your ${current}-day streak going.`
             : 'Complete a lesson to start a streak.'}
       </p>
+
+      {/* Level */}
+      <div className="rounded-xl bg-brand-surface p-5 mb-3">
+        <LevelBadge xp={stats.xp.total} variant="card" />
+      </div>
 
       {/* Headline numbers */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-12">
@@ -193,13 +199,17 @@ export default function StatsPage() {
       </section>
 
       <details className="rounded-xl bg-brand-surface p-5 text-sm">
-        <summary className="cursor-pointer text-brand-secondary">How XP works</summary>
+        <summary className="cursor-pointer text-brand-secondary">How XP and levels work</summary>
         <ul className="mt-3 space-y-1 text-brand-text/85">
           <li>• 50 XP for completing a lesson the first time (20 XP for recaps and orientation lessons)</li>
           <li>• 1 XP per correct answer (your first 3 attempts at an exam each day)</li>
           <li>• 100 XP the first time you pass a domain checkpoint</li>
           <li>• 150 XP the first time you pass a practice exam</li>
         </ul>
+        <p className="mt-3 text-brand-secondary">
+          Levels come from your all-time XP, and each one takes a little more than the last: 🌱 Newcomer (1-4), 🧭 Explorer
+          (5-9), 🥾 Pathfinder (10-14), 🗺️ Navigator (15-19), ⛰️ Trailblazer (20-29), 🏔️ Wayfinder (30+).
+        </p>
       </details>
     </main>
   )
@@ -304,9 +314,10 @@ function LeaderboardList({ entries, mode }: { entries: LeaderboardEntry[]; mode:
             className={`flex items-center gap-3 px-4 py-3 ${e.is_you ? 'bg-brand-primary/10' : ''}`}
           >
             <span className="w-7 text-center tabular-nums text-brand-secondary">{MEDALS[i] ?? i + 1}</span>
-            <span className="flex-1 min-w-0 truncate">
-              {e.name}
-              {e.is_you && <span className="ml-2 text-xs text-brand-primary">You</span>}
+            <span className="flex flex-1 min-w-0 items-center gap-2">
+              <span className="truncate">{e.name}</span>
+              {typeof e.total_xp === 'number' && <LevelBadge xp={e.total_xp} />}
+              {e.is_you && <span className="text-xs text-brand-primary">You</span>}
             </span>
             {mode === 'streak' ? (
               <span className="text-sm tabular-nums">

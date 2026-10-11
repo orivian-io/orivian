@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
+import LevelBadge from '@/components/LevelBadge'
+import { fetchMyStats } from '@/lib/stats'
 
 type CourseProgress = {
   course_id: string
@@ -49,6 +51,7 @@ export default function ProfilePage() {
   // Leaderboard identity: optional nickname, and whether to appear at all.
   const [nickname, setNickname] = useState('')
   const [showOnLeaderboards, setShowOnLeaderboards] = useState(true)
+  const [totalXp, setTotalXp] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [fields, setFields] = useState<ProfileFields>({
     job_title: '',
@@ -80,6 +83,8 @@ export default function ProfilePage() {
         .select('display_name, show_on_leaderboards')
         .eq('id', user.id)
         .single()
+      fetchMyStats().then((s) => s && setTotalXp(s.xp.total))
+
       if (boardRow) {
         setNickname(boardRow.display_name || '')
         setShowOnLeaderboards(boardRow.show_on_leaderboards !== false)
@@ -214,6 +219,11 @@ export default function ProfilePage() {
           )}
         </div>
         <p className="text-brand-secondary text-sm">{user?.email}</p>
+        {totalXp !== null && (
+          <div className="my-4">
+            <LevelBadge xp={totalXp} variant="card" />
+          </div>
+        )}
         <p className="text-brand-secondary text-sm mb-4">
           Member since {user?.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
         </p>

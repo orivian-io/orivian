@@ -30,12 +30,18 @@ export type MyStats = {
   lessons_completed: number
 }
 
-export type LeaderboardEntry = { name: string; is_you: boolean; current?: number; longest?: number; xp?: number }
+export type LeaderboardEntry = { name: string; is_you: boolean; current?: number; longest?: number; xp?: number; total_xp?: number }
 
 export type Leaderboard = {
   streaks: LeaderboardEntry[]
   top_day: LeaderboardEntry[]
   top_week: LeaderboardEntry[]
+}
+
+// Tell the streak flame / level badge that progress just changed (lesson
+// completed, exam submitted) so they refresh and can celebrate a level-up.
+export function notifyProgress() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('orivian:progress'))
 }
 
 export async function fetchMyStats(): Promise<MyStats | null> {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { notifyProgress } from '@/lib/stats'
 import { DomainIcon } from '@/lib/domain-icons'
 
 type Section = {
@@ -149,6 +150,7 @@ export default function DomainCheckpointPage() {
     }
 
     setResult(json)
+    notifyProgress()
     setPhase('results')
   }
 

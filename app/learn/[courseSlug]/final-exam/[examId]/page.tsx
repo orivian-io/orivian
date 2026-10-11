@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { notifyProgress } from '@/lib/stats'
 import { DomainIcon } from '@/lib/domain-icons'
 import { formatDuration } from '@/lib/format-duration'
 
@@ -281,6 +282,7 @@ export default function FinalExamPage() {
 
     clearProgress()
     setResult(json)
+    notifyProgress()
     setPhase('results')
   }
 
