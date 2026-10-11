@@ -10,6 +10,7 @@ import { fetchMyStats, notifyProfileChanged } from '@/lib/stats'
 import Avatar from '@/components/Avatar'
 import AvatarPicker from '@/components/AvatarPicker'
 import { levelFor } from '@/lib/levels'
+import { aliasSaveError, generateAlias, validateAlias } from '@/lib/alias'
 
 type CourseProgress = {
   course_id: string
@@ -51,8 +52,9 @@ export default function ProfilePage() {
   const router = useRouter()
 
   const [editing, setEditing] = useState(false)
-  // Leaderboard identity: optional nickname, and whether to appear at all.
+  // Public identity: alias (required), and whether to appear publicly at all.
   const [nickname, setNickname] = useState('')
+  const [aliasError, setAliasError] = useState('')
   const [showOnLeaderboards, setShowOnLeaderboards] = useState(true)
   const [totalXp, setTotalXp] = useState<number | null>(null)
   const [avatar, setAvatar] = useState<string | null>(null)
@@ -180,6 +182,12 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     if (!user) return
+    const aliasProblem = validateAlias(nickname)
+    if (aliasProblem) {
+      setAliasError(aliasProblem)
+      return
+    }
+    setAliasError('')
     setSaving(true)
 
     await supabase
@@ -192,15 +200,21 @@ export default function ProfilePage() {
       })
       .eq('id', user.id)
 
-    await supabase
+    const { error: publicError } = await supabase
       .from('profiles')
       .update({
-        display_name: nickname.trim() || null,
+        display_name: nickname.trim(),
+        alias_confirmed: true,
         show_on_leaderboards: showOnLeaderboards,
       })
       .eq('id', user.id)
 
     setSaving(false)
+    if (publicError) {
+      setAliasError(aliasSaveError(publicError))
+      return
+    }
+    notifyProfileChanged()
     setEditing(false)
   }
 
@@ -292,15 +306,33 @@ export default function ProfilePage() {
               className="w-full border border-brand-muted/40 rounded-md p-2 bg-brand-surface-raised text-sm"
             />
             <div className="rounded-md border border-brand-muted/30 p-3 space-y-2">
-              <p className="text-xs uppercase tracking-wide text-brand-secondary">Leaderboards</p>
-              <input
-                type="text"
-                maxLength={40}
-                placeholder="Nickname (optional - shown instead of your name)"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                className="w-full border border-brand-muted/40 rounded-md p-2 bg-brand-surface-raised text-sm"
-              />
+              <p className="text-xs uppercase tracking-wide text-brand-secondary">Public alias</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  maxLength={24}
+                  placeholder="Public alias (required)"
+                  value={nickname}
+                  onChange={(e) => {
+                    setNickname(e.target.value)
+                    setAliasError('')
+                  }}
+                  className="min-w-0 flex-1 border border-brand-muted/40 rounded-md p-2 bg-brand-surface-raised text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNickname(generateAlias())
+                    setAliasError('')
+                  }}
+                  className="shrink-0 rounded-md border border-brand-muted/40 px-3 text-sm text-brand-secondary hover:text-brand-primary transition"
+                  title="Suggest another alias"
+                >
+                  🎲
+                </button>
+              </div>
+              <p className="text-xs text-brand-muted">Shown on leaderboards and live activity instead of your name.</p>
+              {aliasError && <p className="text-xs text-red-400">{aliasError}</p>}
               <label className="flex items-center gap-2 text-sm text-brand-text cursor-pointer">
                 <input
                   type="checkbox"
@@ -308,7 +340,7 @@ export default function ProfilePage() {
                   onChange={(e) => setShowOnLeaderboards(e.target.checked)}
                   className="h-4 w-4 accent-[#C19955]"
                 />
-                Show me on Orivian leaderboards
+                Show me publicly (leaderboards and live activity)
               </label>
             </div>
             <textarea
@@ -346,8 +378,8 @@ export default function ProfilePage() {
             {fields.bio && <p className="text-sm text-brand-secondary mb-2">{fields.bio}</p>}
             <p className="text-xs text-brand-muted mb-2">
               {showOnLeaderboards
-                ? `On leaderboards as “${nickname.trim() || user?.user_metadata?.full_name || 'your name'}”`
-                : 'Hidden from leaderboards'}
+                ? `Public alias: “${nickname.trim() || '-'}”`
+                : `Public alias: “${nickname.trim() || '-'}” (hidden from leaderboards and live activity)`}
             </p>
             {fields.linkedin_url && (
               <a

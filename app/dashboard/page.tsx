@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
+import LiveActivity from '@/components/LiveActivity'
 
 type CourseProgress = {
   course_id: string
@@ -196,6 +197,10 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      <div className="mt-14">
+        <LiveActivity />
+      </div>
     </main>
   )
-}
+}

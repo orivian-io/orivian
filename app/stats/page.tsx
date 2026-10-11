@@ -193,8 +193,8 @@ export default function StatsPage() {
           <EmptyNote>Leaderboards aren&apos;t available right now.</EmptyNote>
         )}
         <p className="mt-3 text-xs text-brand-muted">
-          &quot;Top&quot; boards rank XP over the last 24 hours and 7 days. You appear by your nickname, or your name if you
-          haven&apos;t set one. Change it or hide yourself from leaderboards on your{' '}
+          &quot;Top&quot; boards rank XP over the last 24 hours and 7 days. Everyone appears by their public alias, never their
+          real name. Change your alias or hide yourself from leaderboards on your{' '}
           <Link href="/profile" className="text-brand-primary hover:underline">
             profile
           </Link>

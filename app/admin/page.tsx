@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import LiveActivity from '@/components/LiveActivity'
 
 const ADMIN_EMAIL = 'dan@orivian.io'
 
@@ -150,6 +151,10 @@ export default function AdminPage() {
           <p className="text-3xl font-bold text-brand-primary">{courseStats.length}</p>
           <p className="text-sm text-brand-secondary mt-1">Live Courses</p>
         </div>
+      </div>
+
+      <div className="mb-12">
+        <LiveActivity variant="admin" />
       </div>
 
       <h2 className="text-xl font-semibold mb-4">Course Usage</h2>

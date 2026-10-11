@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 import NavStreak from '@/components/NavStreak'
+import AliasPrompt from '@/components/AliasPrompt'
 import Avatar from '@/components/Avatar'
 
 export default function Navbar() {
@@ -61,6 +62,7 @@ export default function Navbar() {
         </Link>
         {user ? (
           <>
+            <AliasPrompt userId={user.id} />
             <NavStreak userId={user.id} />
             <Link href="/stats" className="hover:text-brand-primary transition">
               Stats

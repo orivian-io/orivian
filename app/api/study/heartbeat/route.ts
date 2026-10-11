@@ -76,14 +76,28 @@ export async function POST(req: NextRequest) {
   const now = new Date()
 
   if (!existing) {
-    const { error } = await supabaseAdmin.from('study_sessions').insert({
+    // Coarse location from the hosting provider (Vercel): country, plus the
+    // state for US learners. Nothing more precise is stored.
+    const country = (req.headers.get('x-vercel-ip-country') || '').toUpperCase()
+    const region = (req.headers.get('x-vercel-ip-country-region') || '').toUpperCase()
+    const validCountry = /^[A-Z]{2}$/.test(country) ? country : null
+    const validRegion = validCountry === 'US' && /^[A-Z]{2}$/.test(region) ? region : null
+
+    const session = {
       user_id: user.id,
       lesson_id: lessonId,
       client_session_id: clientSessionId,
       started_at: now.toISOString(),
       last_heartbeat_at: now.toISOString(),
       duration_seconds: 0,
-    })
+    }
+    let { error } = await supabaseAdmin
+      .from('study_sessions')
+      .insert({ ...session, country: validCountry, region: validRegion })
+    if (error && /country|region/i.test(error.message)) {
+      // Location columns not added yet (migration 0014) - still track time.
+      ;({ error } = await supabaseAdmin.from('study_sessions').insert(session))
+    }
 
     if (error) {
       return NextResponse.json({ error: 'Failed to start study session' }, { status: 500 })
