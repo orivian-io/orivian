@@ -37,6 +37,9 @@ export default function Navbar() {
         </Link>
         {user ? (
           <>
+            <Link href="/notes" className="hover:text-brand-primary transition">
+              Notes
+            </Link>
             <Link href="/profile" className="hover:text-brand-primary transition">
               Profile
             </Link>

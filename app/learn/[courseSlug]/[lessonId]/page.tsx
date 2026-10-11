@@ -8,6 +8,9 @@ import { useStudyTimer } from '@/lib/use-study-timer'
 import { blockToSpeechText, type ContentBlock } from '@/lib/narration'
 import { prefetchNarration, startNarration, stopNarration } from '@/lib/narrator'
 import { createReadAlong } from '@/lib/read-along'
+import { createNote, listLessonNotes, type Note } from '@/lib/notes'
+import LessonNotes from '@/components/LessonNotes'
+import SaveSelectionButton from '@/components/SaveSelectionButton'
 import { DomainIcon } from '@/lib/domain-icons'
 import VoiceSettings from '@/components/VoiceSettings'
 import { renderInline } from '@/lib/inline-format'
@@ -19,7 +22,7 @@ type Lesson = {
   content_blocks: ContentBlock[]
   lesson_type: string
   section: { title: string; slug: string } | null
-  course: { slug: string; title: string } | null
+  course: { id: string; slug: string; title: string } | null
 }
 
 type ExamQuestion = {
@@ -51,6 +54,11 @@ export default function LessonPlayerPage() {
   const [blockIndex, setBlockIndex] = useState(0)
   const [speaking, setSpeaking] = useState(false)
 
+  // Learner's private notes for this lesson (null while loading).
+  const [notes, setNotes] = useState<Note[] | null>(null)
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
+
   const [questions, setQuestions] = useState<ExamQuestion[]>([])
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -73,7 +81,7 @@ export default function LessonPlayerPage() {
 
       const { data, error } = await supabase
         .from('lessons')
-        .select('id, title, content_blocks, lesson_type, sections(title, slug), courses(slug, title)')
+        .select('id, title, content_blocks, lesson_type, sections(title, slug), courses(id, slug, title)')
         .eq('id', lessonId)
         .single()
 
@@ -94,6 +102,10 @@ export default function LessonPlayerPage() {
         course: course || null,
       })
       setPhase('content')
+
+      listLessonNotes(data.id)
+        .then(setNotes)
+        .catch(() => setNotes([]))
     }
 
     load()
@@ -113,6 +125,20 @@ export default function LessonPlayerPage() {
   }, [blockIndex, phase])
 
   const blockRef = useRef<HTMLDivElement>(null)
+
+  // "Save to notes" on selected lesson text: saves the quote, then opens the
+  // notes panel with that note ready for the learner's own thoughts.
+  const saveSelectionToNotes = async (text: string) => {
+    if (!lesson) return
+    setNotesOpen(true)
+    try {
+      const note = await createNote({ quote: text, lesson_id: lesson.id, course_id: lesson.course?.id ?? null })
+      setNotes((prev) => [note, ...(prev ?? [])])
+      setFocusNoteId(note.id)
+    } catch {
+      // The panel stays open so the learner can retry by typing the note.
+    }
+  }
 
   const currentBlock = lesson?.content_blocks[blockIndex]
   const isLastBlock = lesson ? blockIndex === lesson.content_blocks.length - 1 : false
@@ -257,6 +283,15 @@ export default function LessonPlayerPage() {
             ✕ Exit
           </Link>
           <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-end">
+            <button
+              type="button"
+              onClick={() => setNotesOpen((o) => !o)}
+              className="flex items-center gap-1.5 rounded-full border border-brand-muted/30 px-2.5 py-1 text-xs text-brand-secondary transition hover:border-brand-primary/60 hover:text-brand-primary"
+              aria-expanded={notesOpen}
+            >
+              <span aria-hidden="true">📝</span>
+              Notes{notes && notes.length > 0 ? ` (${notes.length})` : ''}
+            </button>
             {todaySeconds !== null && (
               <span
                 className="flex items-center gap-1.5 text-xs text-brand-secondary tabular-nums"
@@ -466,6 +501,18 @@ export default function LessonPlayerPage() {
           </div>
         )}
       </div>
+
+      {phase === 'content' && <SaveSelectionButton containerRef={blockRef} onSave={saveSelectionToNotes} />}
+      <LessonNotes
+        open={notesOpen}
+        onClose={() => setNotesOpen(false)}
+        lessonId={lesson.id}
+        courseId={lesson.course?.id ?? null}
+        lessonTitle={lesson.title}
+        notes={notes}
+        setNotes={(update) => setNotes((prev) => update(prev ?? []))}
+        focusNoteId={focusNoteId}
+      />
     </div>
   )
 }
