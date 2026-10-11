@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import PageViewTracker from "@/components/PageViewTracker";
 import { Analytics } from "@vercel/analytics/next";
 
 const fraunces = Fraunces({
@@ -33,7 +34,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Navbar />
         {children}
         <Analytics />
+        <PageViewTracker />
       </body>
     </html>
   );
-}
+}

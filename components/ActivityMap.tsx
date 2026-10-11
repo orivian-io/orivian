@@ -32,11 +32,13 @@ type Props = {
   // "panel" sits inside a card with a legend; "hero" is the full-bleed
   // homepage version (lights-at-night glow, no legend).
   variant?: 'panel' | 'hero'
+  // What the dots count: learners studying (default) or site visitors.
+  kind?: 'study' | 'visit'
 }
 
 // World map of study activity: US learners by state, everyone else by
 // country. Bright pulsing dots = studying now; soft dots = studied recently.
-export default function ActivityMap({ regions, span = 'week', variant = 'panel' }: Props) {
+export default function ActivityMap({ regions, span = 'week', variant = 'panel', kind = 'study' }: Props) {
   const [map, setMap] = useState<WorldMap | null>(null)
   const [hover, setHover] = useState<string | null>(null)
   const hero = variant === 'hero'
@@ -68,7 +70,8 @@ export default function ActivityMap({ regions, span = 'week', variant = 'panel' 
     .sort((a, b) => a.now - b.now || spanCount(a) - spanCount(b)) // draw active-now dots on top
 
   const land = hero ? '#171B21' : '#1C2025'
-  const spanLabel = span === 'month' ? 'this month' : 'this week'
+  const spanLabel = kind === 'visit' ? 'in this period' : span === 'month' ? 'this month' : 'this week'
+  const nowWord = kind === 'visit' ? 'on the site now' : 'studying now'
 
   return (
     <div className="relative">
@@ -121,7 +124,7 @@ export default function ActivityMap({ regions, span = 'week', variant = 'panel' 
                 onFocus={() => setHover(r.key)}
                 onBlur={() => setHover(null)}
                 tabIndex={0}
-                aria-label={`${placeName(r.key, map.names)}: ${r.now} studying now, ${spanCount(r)} ${spanLabel}`}
+                aria-label={`${placeName(r.key, map.names)}: ${r.now} ${nowWord}, ${spanCount(r)} ${spanLabel}`}
                 className="cursor-default outline-none"
               >
                 {hero && <circle cx={x} cy={y} r={radius * (live ? 4.5 : 3.2)} fill="url(#study-glow)" />}
@@ -153,7 +156,7 @@ export default function ActivityMap({ regions, span = 'week', variant = 'panel' 
         >
           <p className="font-medium text-brand-text">{placeName(hovered.key, map.names)}</p>
           <p className="text-brand-secondary tabular-nums">
-            {hovered.now > 0 && <span className="text-brand-primary">{hovered.now} studying now, </span>}
+            {hovered.now > 0 && <span className="text-brand-primary">{hovered.now} {nowWord}, </span>}
             {hovered.day} today, {spanCount(hovered)} {spanLabel}
           </p>
         </div>
@@ -162,10 +165,10 @@ export default function ActivityMap({ regions, span = 'week', variant = 'panel' 
       {!hero && (
         <div className="mt-2 flex items-center justify-end gap-4 text-[11px] text-brand-muted">
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#E4C473]" /> Studying now
+            <span className="h-2.5 w-2.5 rounded-full bg-[#E4C473]" /> {kind === 'visit' ? 'On the site now' : 'Studying now'}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-brand-primary/60" /> Studied {spanLabel}
+            <span className="h-2.5 w-2.5 rounded-full bg-brand-primary/60" /> {kind === 'visit' ? 'Visited' : 'Studied'} {spanLabel}
           </span>
         </div>
       )}

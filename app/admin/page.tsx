@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import LiveActivity from '@/components/LiveActivity'
+import TrafficSection from '@/components/admin/TrafficSection'
 import Avatar from '@/components/Avatar'
 import { getAvatar } from '@/lib/avatars'
 import { timeAgo } from '@/lib/live'
@@ -32,6 +33,7 @@ type CourseRequest = {
 
 const SECTIONS = [
   ['overview', 'Overview'],
+  ['traffic', 'Traffic'],
   ['live', 'Live'],
   ['friends', 'Friends & invites'],
   ['features', 'Feature adoption'],
@@ -237,6 +239,8 @@ export default function AdminPage() {
           !overviewFailed && <div className="h-48 animate-pulse rounded-xl bg-brand-surface" />
         )}
       </section>
+
+      <TrafficSection />
 
       {/* Live */}
       <section className="mb-14">
