@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import ResetProgressDialog from '@/components/ResetProgressDialog'
 import { DomainIcon } from '@/lib/domain-icons'
 import { renderInline } from '@/lib/inline-format'
 import type { User } from '@supabase/supabase-js'
@@ -92,6 +93,7 @@ export default function CoursePage() {
   const [finalExams, setFinalExams] = useState<FinalExam[]>([])
   const [finalExamBest, setFinalExamBest] = useState<Map<string, { scorePercent: number; passed: boolean; withinTimeLimit: boolean }>>(new Map())
   const [loading, setLoading] = useState(true)
+  const [resetTarget, setResetTarget] = useState<{ scope: 'course' | 'lesson'; id: string; title: string } | null>(null)
   // Empty set = every domain starts collapsed; expanding one adds its
   // section id here.
   const [openSectionIds, setOpenSectionIds] = useState<Set<string>>(new Set())
@@ -373,6 +375,14 @@ export default function CoursePage() {
             />
           </div>
           <span className="text-sm text-brand-secondary whitespace-nowrap">{percent}% complete</span>
+          <button
+            type="button"
+            onClick={() => setResetTarget({ scope: 'course', id: course.id, title: course.title })}
+            className="text-xs text-brand-muted hover:text-red-400 transition whitespace-nowrap"
+            title="Clear your progress and start this course fresh"
+          >
+            ↺ Reset
+          </button>
         </div>
       )}
 
@@ -471,13 +481,24 @@ export default function CoursePage() {
                   )
 
                   return enrolled ? (
-                    <Link
-                      key={lesson.id}
-                      href={`/learn/${slug}/${lesson.id}`}
-                      className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-start justify-between gap-4"
-                    >
-                      {inner}
-                    </Link>
+                    <div key={lesson.id} className="group relative">
+                      <Link
+                        href={`/learn/${slug}/${lesson.id}`}
+                        className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-start justify-between gap-4"
+                      >
+                        {inner}
+                      </Link>
+                      {(isComplete || isStarted) && (
+                        <button
+                          type="button"
+                          onClick={() => setResetTarget({ scope: 'lesson', id: lesson.id, title: lesson.title })}
+                          className="absolute bottom-3 right-4 text-xs text-brand-muted hover:text-red-400 transition sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
+                          title="Reset this lesson's progress"
+                        >
+                          ↺ Reset
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <div
                       key={lesson.id}
@@ -662,6 +683,16 @@ export default function CoursePage() {
             ))}
           </div>
         </div>
+      )}
+      {resetTarget && (
+        <ResetProgressDialog
+          open
+          onClose={() => setResetTarget(null)}
+          scope={resetTarget.scope}
+          targetId={resetTarget.id}
+          targetTitle={resetTarget.title}
+          onDone={() => window.location.reload()}
+        />
       )}
     </main>
   )

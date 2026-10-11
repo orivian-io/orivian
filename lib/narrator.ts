@@ -127,6 +127,14 @@ function getAudio() {
   return audio
 }
 
+// True while lesson narration (or a voice sample) is playing. The study
+// timer treats listening as activity, so learners who just listen aren't
+// marked idle.
+export function isNarrationPlaying(): boolean {
+  if (audio && !audio.paused && !audio.ended) return true
+  return typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis.speaking
+}
+
 export function stopNarration() {
   const stop = stopCurrent
   stopCurrent = null

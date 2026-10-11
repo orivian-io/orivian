@@ -7,6 +7,13 @@ import { getAuthedUser } from '@/lib/get-authed-user'
 // hours of continuous study once it resumes.
 const MAX_SECONDS_PER_HEARTBEAT = 60
 
+// Newer clients report how many seconds the learner was actually active
+// (page focused, not idle) since their last heartbeat. Active seconds can
+// arrive in a burst - e.g. a minute of quiet reading is confirmed when the
+// learner next scrolls - so the per-call cap is higher, but a session can
+// never be credited more than the real time since it started.
+const MAX_ACTIVE_SECONDS_PER_HEARTBEAT = 300
+
 type CourseStudyBreakdown = { total: number; today: number } | null
 
 async function getCourseStudyBreakdown(userId: string, lessonId: string): Promise<CourseStudyBreakdown> {
@@ -33,8 +40,7 @@ async function getCourseStudyBreakdown(userId: string, lessonId: string): Promis
   }
 }
 
-// Called roughly every 20s by the lesson player while it's visible and
-// focused. Accumulates real study time server-side - a user can't
+// Called by the lesson player while the learner is actively studying. Accumulates real study time server-side - a user can't
 // fabricate hours by calling this directly, since each call can only
 // ever add up to MAX_SECONDS_PER_HEARTBEAT regardless of what's claimed.
 //
@@ -51,6 +57,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   const lessonId = body?.lessonId
   const clientSessionId = body?.clientSessionId
+  const reportedActiveSeconds =
+    typeof body?.activeSeconds === 'number' && Number.isFinite(body.activeSeconds)
+      ? Math.max(0, Math.floor(body.activeSeconds))
+      : null
 
   if (!lessonId || !clientSessionId) {
     return NextResponse.json({ error: 'lessonId and clientSessionId are required' }, { status: 400 })
@@ -58,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   const { data: existing } = await supabaseAdmin
     .from('study_sessions')
-    .select('id, last_heartbeat_at, duration_seconds')
+    .select('id, started_at, last_heartbeat_at, duration_seconds')
     .eq('user_id', user.id)
     .eq('client_session_id', clientSessionId)
     .maybeSingle()
@@ -87,11 +97,20 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  const rawElapsedSeconds = Math.round(
-    (now.getTime() - new Date(existing.last_heartbeat_at).getTime()) / 1000
-  )
-  const elapsedSeconds = Math.max(0, Math.min(MAX_SECONDS_PER_HEARTBEAT, rawElapsedSeconds))
-  const newDuration = existing.duration_seconds + elapsedSeconds
+  let newDuration: number
+  if (reportedActiveSeconds !== null) {
+    const wallSeconds = Math.floor((now.getTime() - new Date(existing.started_at).getTime()) / 1000) + 5
+    const credited = Math.min(reportedActiveSeconds, MAX_ACTIVE_SECONDS_PER_HEARTBEAT)
+    newDuration = Math.max(existing.duration_seconds, Math.min(existing.duration_seconds + credited, wallSeconds))
+  } else {
+    // Older clients (a tab opened before this update) - time since the
+    // last heartbeat, capped.
+    const rawElapsedSeconds = Math.round(
+      (now.getTime() - new Date(existing.last_heartbeat_at).getTime()) / 1000
+    )
+    const elapsedSeconds = Math.max(0, Math.min(MAX_SECONDS_PER_HEARTBEAT, rawElapsedSeconds))
+    newDuration = existing.duration_seconds + elapsedSeconds
+  }
 
   const { error } = await supabaseAdmin
     .from('study_sessions')

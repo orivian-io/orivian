@@ -72,7 +72,7 @@ export default function LessonPlayerPage() {
   // exam - not while looking at results. todaySeconds/totalSeconds are
   // the learner's live, server-synced study time for this course - today
   // and all-time - shown as running timers in the header.
-  const { todaySeconds, totalSeconds } = useStudyTimer(phase === 'content' || phase === 'exam' ? lessonId : null)
+  const { todaySeconds, totalSeconds, paused: timerPaused } = useStudyTimer(phase === 'content' || phase === 'exam' ? lessonId : null)
 
   useEffect(() => {
     const load = async () => {
@@ -306,6 +306,14 @@ export default function LessonPlayerPage() {
               <span aria-hidden="true">📝</span>
               Notes{notes && notes.length > 0 ? ` (${notes.length})` : ''}
             </button>
+            {todaySeconds !== null && timerPaused && (
+              <span
+                className="text-xs text-brand-muted"
+                title="Your study timer pauses when you switch away or haven't interacted for 2 minutes. Scroll, click, or press a key to resume."
+              >
+                ⏸ Timer paused
+              </span>
+            )}
             {todaySeconds !== null && (
               <span
                 className="flex items-center gap-1.5 text-xs text-brand-secondary tabular-nums"
