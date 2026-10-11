@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import ResetProgressDialog from '@/components/ResetProgressDialog'
+import RemoveCourseDialog from '@/components/RemoveCourseDialog'
 import { DomainIcon } from '@/lib/domain-icons'
 import { renderInline } from '@/lib/inline-format'
 import type { User } from '@supabase/supabase-js'
@@ -93,6 +94,7 @@ export default function CoursePage() {
   const [finalExams, setFinalExams] = useState<FinalExam[]>([])
   const [finalExamBest, setFinalExamBest] = useState<Map<string, { scorePercent: number; passed: boolean; withinTimeLimit: boolean }>>(new Map())
   const [loading, setLoading] = useState(true)
+  const [removing, setRemoving] = useState(false)
   const [resetTarget, setResetTarget] = useState<{ scope: 'course' | 'lesson'; id: string; title: string } | null>(null)
   // Empty set = every domain starts collapsed; expanding one adds its
   // section id here.
@@ -383,8 +385,24 @@ export default function CoursePage() {
           >
             ↺ Reset
           </button>
+          <button
+            type="button"
+            onClick={() => setRemoving(true)}
+            className="text-xs text-brand-muted hover:text-red-400 transition whitespace-nowrap"
+            title="Take this course off your home page and profile"
+          >
+            Remove
+          </button>
         </div>
       )}
+      <RemoveCourseDialog
+        course={removing ? { id: course.id, title: course.title } : null}
+        onClose={() => setRemoving(false)}
+        onDone={() => {
+          setRemoving(false)
+          setEnrolled(false)
+        }}
+      />
 
       <div className="space-y-10 mb-12">
         {sections.map((section) => {

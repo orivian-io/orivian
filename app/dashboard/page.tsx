@@ -6,8 +6,13 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import LevelBadge from '@/components/LevelBadge'
 import LiveGlance from '@/components/LiveGlance'
+import CourseMenu from '@/components/CourseMenu'
+import RemoveCourseDialog from '@/components/RemoveCourseDialog'
+import ResetProgressDialog from '@/components/ResetProgressDialog'
 import { loadHome, type HomeCourse, type HomeData } from '@/lib/home'
 import { fetchMyStats, percent, todayIn, type MyStats } from '@/lib/stats'
+
+type CourseAction = (c: HomeCourse, action: 'reset' | 'remove') => void
 
 const lessonHref = (c: HomeCourse) => (c.next ? `/learn/${c.slug}/${c.next.id}` : `/courses/${c.slug}`)
 
@@ -88,13 +93,23 @@ function ProgressBar({ value, label }: { value: number; label: string }) {
   )
 }
 
-function UpNext({ course }: { course: HomeCourse }) {
+function UpNext({ course, onAction }: { course: HomeCourse; onAction: CourseAction }) {
   const done = !course.next
   return (
-    <section className="relative flex flex-col overflow-hidden rounded-2xl border border-brand-primary/30 bg-gradient-to-br from-brand-surface-raised to-brand-surface p-6 sm:p-8">
-      <p className="text-sm text-brand-primary">
-        {done ? 'Course complete' : course.next?.started ? 'Pick up where you left off' : 'Up next'}
-      </p>
+    <section className="relative flex flex-col rounded-2xl border border-brand-primary/30 bg-gradient-to-br from-brand-surface-raised to-brand-surface p-6 sm:p-8">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm text-brand-primary">
+          {done ? 'Course complete' : course.next?.started ? 'Pick up where you left off' : 'Up next'}
+        </p>
+        <div className="-mr-2 -mt-2">
+          <CourseMenu
+            slug={course.slug}
+            title={course.title}
+            onReset={() => onAction(course, 'reset')}
+            onRemove={() => onAction(course, 'remove')}
+          />
+        </div>
+      </div>
       <p className="mt-1 text-sm text-brand-secondary">
         {course.title}
         {course.next?.section ? `, ${course.next.section}` : ''}
@@ -167,12 +182,12 @@ function Momentum({ stats }: { stats: MyStats }) {
   )
 }
 
-function CourseList({ courses }: { courses: HomeCourse[] }) {
+function CourseList({ courses, onAction }: { courses: HomeCourse[]; onAction: CourseAction }) {
   return (
     <ul className="divide-y divide-brand-muted/15 rounded-xl bg-brand-surface">
       {courses.map((c) => (
-        <li key={c.id} className="grid gap-x-6 gap-y-2 p-5 sm:grid-cols-[1fr_auto] sm:items-center">
-          <div className="min-w-0">
+        <li key={c.id} className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 p-5 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+          <div className="col-start-1 row-start-1 min-w-0">
             <Link href={`/courses/${c.slug}`} className="font-display text-lg hover:text-brand-primary">
               {c.title}
             </Link>
@@ -190,10 +205,18 @@ function CourseList({ courses }: { courses: HomeCourse[] }) {
           </div>
           <Link
             href={lessonHref(c)}
-            className="w-24 justify-self-start rounded-md border border-brand-muted/40 py-2 text-center text-sm transition hover:border-brand-primary hover:text-brand-primary sm:justify-self-end"
+            className="col-start-1 row-start-2 w-24 justify-self-start sm:col-start-2 sm:row-start-1 rounded-md border border-brand-muted/40 py-2 text-center text-sm transition hover:border-brand-primary hover:text-brand-primary sm:justify-self-end"
           >
             {!c.next ? 'Review' : c.completed === 0 && !c.next.started ? 'Start' : 'Resume'}
           </Link>
+          <div className="col-start-2 row-start-1 self-start sm:col-start-3 sm:self-center">
+            <CourseMenu
+              slug={c.slug}
+              title={c.title}
+              onReset={() => onAction(c, 'reset')}
+              onRemove={() => onAction(c, 'remove')}
+            />
+          </div>
         </li>
       ))}
     </ul>
@@ -205,7 +228,15 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<MyStats | null>(null)
   const [greeting, setGreeting] = useState('Welcome back')
   const [firstName, setFirstName] = useState('')
+  const [userId, setUserId] = useState<string | null>(null)
+  const [target, setTarget] = useState<{ course: HomeCourse; action: 'reset' | 'remove' } | null>(null)
   const router = useRouter()
+
+  const onAction: CourseAction = (course, action) => setTarget({ course, action })
+  const refresh = () => {
+    setTarget(null)
+    if (userId) loadHome(userId).then(setHome)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -215,6 +246,7 @@ export default function DashboardPage() {
         router.push('/login')
         return
       }
+      setUserId(user.id)
       setFirstName((user.user_metadata?.full_name || '').split(' ')[0])
       setGreeting(greetingFor(new Date().getHours()))
       const [h, s] = await Promise.all([loadHome(user.id), fetchMyStats()])
@@ -239,6 +271,21 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-14">
+      <RemoveCourseDialog
+        course={target?.action === 'remove' ? { id: target.course.id, title: target.course.title } : null}
+        onClose={() => setTarget(null)}
+        onDone={refresh}
+      />
+      {target?.action === 'reset' && (
+        <ResetProgressDialog
+          open
+          scope="course"
+          targetId={target.course.id}
+          targetTitle={target.course.title}
+          onClose={() => setTarget(null)}
+          onDone={refresh}
+        />
+      )}
       <header className="mb-8">
         <h1 className="text-3xl font-medium sm:text-4xl">
           {greeting}
@@ -251,7 +298,7 @@ export default function DashboardPage() {
 
       {current ? (
         <div className="grid gap-5 lg:grid-cols-[1.75fr_1fr]">
-          <UpNext course={current} />
+          <UpNext course={current} onAction={onAction} />
           {stats && <Momentum stats={stats} />}
         </div>
       ) : (
@@ -275,7 +322,7 @@ export default function DashboardPage() {
           {others.length > 0 && (
             <section>
               <h2 className="mb-4 text-xl font-medium">Your other courses</h2>
-              <CourseList courses={others} />
+              <CourseList courses={others} onAction={onAction} />
             </section>
           )}
 
