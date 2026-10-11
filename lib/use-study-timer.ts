@@ -7,6 +7,9 @@ import { isNarrationPlaying } from '@/lib/narrator'
 // After this long with no mouse, keyboard, touch or scroll activity (and no
 // narration playing), the learner counts as away and the timer pauses.
 const IDLE_AFTER_MS = 2 * 60 * 1000
+// After switching to another tab, window or app, the timer keeps running
+// for this long (a quick look at something else still counts), then pauses.
+const AWAY_GRACE_MS = 60 * 1000
 const HEARTBEAT_INTERVAL_MS = 20000
 const TICK_INTERVAL_MS = 1000
 
@@ -19,8 +22,9 @@ type Display = { lessonId: string; totalSeconds: number; todaySeconds: number; p
  * its course: `todaySeconds` and `totalSeconds` (null until the first sync),
  * plus `paused` while the learner is away.
  *
- * A second only counts when the page is visible AND focused, and the
- * learner has interacted (or narration has played) within IDLE_AFTER_MS.
+ * A second counts when the page is visible and focused and the learner
+ * has interacted (or narration has played) within IDLE_AFTER_MS. After
+ * switching away, the timer keeps counting for AWAY_GRACE_MS, then pauses.
  * Seconds since the last interaction are held as "tentative" and only
  * confirmed by the next interaction (or by switching away, which takes a
  * person), so time spent away from the keyboard is never recorded - if
@@ -46,6 +50,7 @@ export function useStudyTimer(lessonId: string | null) {
     let tentative = 0 // seconds since the last interaction, not yet confirmed
     let lastInteraction = Date.now()
     let idle = false
+    let awaySince: number | null = null // when the learner switched away
     let disposed = false
 
     const engaged = () => document.visibilityState === 'visible' && document.hasFocus()
@@ -57,7 +62,7 @@ export function useStudyTimer(lessonId: string | null) {
         lessonId,
         totalSeconds: baseTotal + local,
         todaySeconds: baseToday + local,
-        paused: idle || !engaged(),
+        paused: idle || (!engaged() && (awaySince === null || Date.now() - awaySince > AWAY_GRACE_MS)),
       })
     }
 
@@ -121,7 +126,12 @@ export function useStudyTimer(lessonId: string | null) {
     }
 
     const tick = () => {
-      if (!engaged()) return
+      if (!engaged()) {
+        // Switched away: keep counting through the grace period, then pause.
+        if (!idle && awaySince !== null && Date.now() - awaySince <= AWAY_GRACE_MS) pending += 1
+        render()
+        return
+      }
       // Listening counts as studying, and is confirmed as it happens.
       const narrating = isNarrationPlaying()
       if (narrating) lastInteraction = Date.now()
@@ -140,11 +150,13 @@ export function useStudyTimer(lessonId: string | null) {
     const onLeave = () => {
       // Switching tabs or apps takes a person, so time up to now counts.
       if (!idle) confirmTentative()
+      if (awaySince === null) awaySince = Date.now()
       render()
       if (pending > 0) void sendHeartbeat(true)
     }
 
     const onReturn = () => {
+      awaySince = null
       markActivity()
       render()
     }
