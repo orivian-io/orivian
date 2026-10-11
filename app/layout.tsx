@@ -17,7 +17,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Orivian — Free Online Courses",
-  description: "A free online learning platform for professionals, starting with CISSP certification prep.",
+  description: "Free courses and certification prep for every career, starting with IT and security.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

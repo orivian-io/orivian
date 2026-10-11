@@ -328,8 +328,7 @@ export default function DashboardPage() {
 
           {current && home.explore.length > 0 && (
             <section>
-              <h2 className="mb-1 text-xl font-medium">More to study</h2>
-              <p className="mb-4 text-sm text-brand-secondary">Free like everything else here.</p>
+              <h2 className="mb-4 text-xl font-medium">More to study</h2>
               <ul className="flex flex-wrap gap-2">
                 {home.explore.map((c) => (
                   <li key={c.slug}>

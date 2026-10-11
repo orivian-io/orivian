@@ -103,8 +103,8 @@ export default function Home() {
             Every light is someone studying.
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-brand-secondary">
-            Orivian is free certification prep for security and IT professionals. Full courses, practice exams and
-            narrated lessons, with no paywall anywhere.
+            Free courses and certification prep for every career. We&apos;re starting with IT and security, and
+            building toward teaching, the trades, healthcare and more.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <Link
