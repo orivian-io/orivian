@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import Avatar from '@/components/Avatar'
-import { AVATARS, type AvatarDef } from '@/lib/avatars'
+import { AVATARS, isAvatarUnlocked, type AvatarDef } from '@/lib/avatars'
 
 // Grid of Orivian's avatars: everyday ones, then ones earned by leveling up.
 export default function AvatarPicker({
   open,
   current,
   level,
+  invites = 0,
   name,
   onSelect,
   onClose,
@@ -16,6 +17,7 @@ export default function AvatarPicker({
   open: boolean
   current: string | null
   level: number
+  invites?: number
   name: string | null
   onSelect: (id: string | null) => Promise<void>
   onClose: () => void
@@ -45,12 +47,17 @@ export default function AvatarPicker({
     }
   }
 
-  const everyday = AVATARS.filter((a) => a.unlockLevel === undefined)
+  const everyday = AVATARS.filter((a) => a.unlockLevel === undefined && a.unlockInvites === undefined)
+  const invited = AVATARS.filter((a) => a.unlockInvites !== undefined).sort((a, b) => (a.unlockInvites ?? 0) - (b.unlockInvites ?? 0))
+  const invitedCount = invited.filter((a) => isAvatarUnlocked(a, level, invites)).length
   const earned = AVATARS.filter((a) => a.unlockLevel !== undefined).sort((a, b) => (a.unlockLevel ?? 0) - (b.unlockLevel ?? 0))
   const earnedCount = earned.filter((a) => (a.unlockLevel ?? 0) <= level).length
 
   const tile = (a: AvatarDef) => {
-    const locked = (a.unlockLevel ?? 0) > level
+    const locked = !isAvatarUnlocked(a, level, invites)
+    const lockLabel = a.unlockInvites
+      ? `${a.unlockInvites} friend${a.unlockInvites === 1 ? '' : 's'}`
+      : `Level ${a.unlockLevel}`
     const selected = current === a.id
     return (
       <button
@@ -61,7 +68,13 @@ export default function AvatarPicker({
         className={`relative flex flex-col items-center gap-1.5 rounded-lg p-2 transition ${
           selected ? 'bg-brand-primary/15 ring-1 ring-brand-primary' : locked ? 'cursor-not-allowed' : 'hover:bg-brand-surface'
         }`}
-        title={locked ? `${a.name} - unlocks at Level ${a.unlockLevel}` : a.name}
+        title={
+          locked
+            ? a.unlockInvites
+              ? `${a.name} - unlocks when ${a.unlockInvites} friend${a.unlockInvites === 1 ? '' : 's'} join with your invite`
+              : `${a.name} - unlocks at Level ${a.unlockLevel}`
+            : a.name
+        }
       >
         <span className={locked ? 'opacity-25 grayscale' : ''}>
           <Avatar avatarId={a.id} size={48} />
@@ -72,7 +85,7 @@ export default function AvatarPicker({
           </span>
         )}
         <span className={`text-[11px] leading-tight text-center ${locked ? 'text-brand-muted' : 'text-brand-secondary'}`}>
-          {locked ? `Level ${a.unlockLevel}` : a.name}
+          {locked ? lockLabel : a.name}
         </span>
       </button>
     )
@@ -117,6 +130,21 @@ export default function AvatarPicker({
             </p>
           </div>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">{earned.map(tile)}</div>
+
+          <div className="mb-2 mt-6 flex items-baseline justify-between gap-3">
+            <p className="text-xs uppercase tracking-wide text-brand-secondary">Earned by inviting friends</p>
+            <p className="text-xs text-brand-muted tabular-nums">
+              {invitedCount} of {invited.length} unlocked
+            </p>
+          </div>
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">{invited.map(tile)}</div>
+          <p className="mt-2 text-xs text-brand-muted">
+            Unlock these when friends sign up with your invite link from the{' '}
+            <a href="/friends" className="text-brand-primary hover:underline">
+              Friends
+            </a>{' '}
+            page.
+          </p>
           {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
         </div>
       </div>

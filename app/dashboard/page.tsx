@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import LevelBadge from '@/components/LevelBadge'
 import LiveGlance from '@/components/LiveGlance'
+import FriendsGlance from '@/components/FriendsGlance'
 import CourseMenu from '@/components/CourseMenu'
 import RemoveCourseDialog from '@/components/RemoveCourseDialog'
 import ResetProgressDialog from '@/components/ResetProgressDialog'
@@ -47,7 +48,7 @@ function streakLine(stats: MyStats | null) {
 // The last 7 days in the learner's timezone, oldest first.
 function lastSevenDays(stats: MyStats) {
   const today = todayIn(stats.timezone)
-  const studied = new Map(stats.days.map((d) => [d.day, d.lessons > 0 || d.xp > 0]))
+  const studied = new Map(stats.days.map((d) => [d.day, d.lessons > 0]))
   const base = new Date(`${today}T12:00:00Z`)
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(base)
@@ -363,6 +364,7 @@ export default function DashboardPage() {
               </Link>
             </section>
           )}
+          <FriendsGlance />
           <LiveGlance />
         </aside>
       </div>

@@ -35,7 +35,7 @@ export default function Avatar({
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full select-none ${earned ? 'ring-1 ring-brand-primary-light/60' : ''} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full select-none ${earned ? 'ring-1 ring-brand-primary-light/60' : avatar?.unlockInvites ? 'ring-1 ring-[#8fb8c4]/60' : ''} ${className}`}
       style={{ width: size, height: size, background: avatar.background, color: earned ? '#0A0C0F' : '#E4C473' }}
       title={avatar.name}
       aria-hidden="true"

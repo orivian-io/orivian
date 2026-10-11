@@ -8,6 +8,8 @@ import type { User } from '@supabase/supabase-js'
 import NavStreak from '@/components/NavStreak'
 import AliasPrompt from '@/components/AliasPrompt'
 import Avatar from '@/components/Avatar'
+import NavFriends from '@/components/NavFriends'
+import InviteRedeemer from '@/components/InviteRedeemer'
 
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null)
@@ -63,10 +65,12 @@ export default function Navbar() {
         {user ? (
           <>
             <AliasPrompt userId={user.id} />
+            <InviteRedeemer userId={user.id} accountInvite={user.user_metadata?.invite_code} />
             <NavStreak userId={user.id} />
             <Link href="/stats" className="hover:text-brand-primary transition">
               Stats
             </Link>
+            <NavFriends />
             <Link href="/notes" className="hover:text-brand-primary transition">
               Notes
             </Link>

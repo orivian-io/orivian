@@ -11,11 +11,28 @@ export type AvatarDef = {
   name: string
   background: string
   unlockLevel?: number
+  unlockInvites?: number // friends who joined with your invite link
   icon: ReactNode // 24x24 line drawing, uses currentColor
 }
 
 const S = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
 const SOFT = { fill: 'currentColor', fillOpacity: 0.3 } as const
+
+// Unlocked by inviting friends who join (see 0016_friends_and_invites.sql).
+const INVITE: AvatarDef[] = [
+  {
+    id: 'handshake', name: 'Handshake', background: '#1d4a4f', unlockInvites: 1,
+    icon: (<g {...S}><path d="M2.5 11 6.5 7.5l3.5 1.5 2-1 5.5.5 4 3" /><path d="M6.5 7.5 11 12.6c.8.9 2.1.9 2.8 0M9.3 14.5l1.6 1.6M7.4 12.6 9 14.2M2.5 11l3.6 4.1M21.5 11l-3.8 4.4-2.8-2.4" /><path d="M10.9 16.1c.7.7 1.8.7 2.5 0l4.3-4.6" {...SOFT} /></g>),
+  },
+  {
+    id: 'constellation', name: 'Constellation', background: '#252a5a', unlockInvites: 3,
+    icon: (<g {...S}><path d="M4.5 17.5 9 10l5.5 3L19.5 5.5M9 10 8 4.5M14.5 13l1.5 6" /><circle cx="4.5" cy="17.5" r="1.4" fill="currentColor" /><circle cx="9" cy="10" r="1.4" fill="currentColor" /><circle cx="14.5" cy="13" r="1.4" fill="currentColor" /><circle cx="19.5" cy="5.5" r="1.4" fill="currentColor" /><circle cx="8" cy="4.5" r="1" fill="currentColor" /><circle cx="16" cy="19" r="1" fill="currentColor" /></g>),
+  },
+  {
+    id: 'flock', name: 'Flock', background: '#3d2a55', unlockInvites: 10,
+    icon: (<g {...S}><path d="M2.5 9.5c1.6-1.6 3.4-1.6 5 0 1.6-1.6 3.4-1.6 5 0" /><path d="M11 15c1.4-1.4 3-1.4 4.4 0 1.4-1.4 3-1.4 4.4 0" /><path d="M8.5 19.5c1-1 2.2-1 3.2 0 1-1 2.2-1 3.2 0" /><path d="M15 5.5c1-1 2.2-1 3.2 0 1-1 2.2-1 3.2 0" /></g>),
+  },
+]
 
 // Earned avatars use metal tones that get brighter at higher levels.
 function earnedBackground(level: number) {
@@ -161,7 +178,14 @@ const EARNED: (Omit<AvatarDef, 'background'> & { unlockLevel: number })[] = [
 export const AVATARS: AvatarDef[] = [
   ...FREE,
   ...EARNED.map((a) => ({ ...a, background: earnedBackground(a.unlockLevel) })),
+  ...INVITE,
 ]
+
+// Whether a learner at this level, with this many friends who joined
+// through their invite, can use an avatar.
+export function isAvatarUnlocked(a: AvatarDef, level: number, invites = 0) {
+  return (a.unlockLevel ?? 0) <= level && (a.unlockInvites ?? 0) <= invites
+}
 
 export function getAvatar(id: string | null | undefined): AvatarDef | null {
   return AVATARS.find((a) => a.id === id) ?? null

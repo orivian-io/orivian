@@ -13,7 +13,8 @@ import RemoveCourseDialog from '@/components/RemoveCourseDialog'
 import ResetProgressDialog from '@/components/ResetProgressDialog'
 import { fetchMyStats, notifyProfileChanged, STREAK_TIERS, type MyStats } from '@/lib/stats'
 import { levelFor } from '@/lib/levels'
-import { AVATARS, nextAvatarUnlock } from '@/lib/avatars'
+import { AVATARS, isAvatarUnlocked, nextAvatarUnlock } from '@/lib/avatars'
+import { fetchFriendsSummary, type FriendsSummary } from '@/lib/friends'
 import { aliasSaveError, generateAlias, validateAlias } from '@/lib/alias'
 import { loadHome, type HomeCourse } from '@/lib/home'
 import { placeName } from '@/lib/live'
@@ -72,6 +73,7 @@ export default function ProfilePage() {
   const [studySeconds, setStudySeconds] = useState(0)
   const [studySecondsToday, setStudySecondsToday] = useState(0)
   const [noteCount, setNoteCount] = useState(0)
+  const [friendsInfo, setFriendsInfo] = useState<FriendsSummary | null>(null)
   const [target, setTarget] = useState<{ course: HomeCourse; action: 'reset' | 'remove' } | null>(null)
 
   const loadCourses = useCallback(async (userId: string) => {
@@ -132,6 +134,7 @@ export default function ProfilePage() {
         setAvatar(publicRow.avatar ?? null)
       }
       setNoteCount(notes || 0)
+      fetchFriendsSummary().then(setFriendsInfo)
       const place = lastPlace?.[0]
       if (place?.country) setMapPlace(place.country === 'US' && place.region ? `US-${place.region}` : place.country)
 
@@ -190,7 +193,8 @@ export default function ProfilePage() {
   const fullName = user.user_metadata?.full_name || user.email || ''
   const xp = stats?.xp.total ?? 0
   const level = levelFor(xp).level
-  const unlocked = AVATARS.filter((a) => (a.unlockLevel ?? 0) <= level).length
+  const invites = friendsInfo?.joined ?? 0
+  const unlocked = AVATARS.filter((a) => isAvatarUnlocked(a, level, invites)).length
   const nextAvatar = nextAvatarUnlock(level)
   const inProgress = courses.filter((c) => c.completed < c.total || c.total === 0)
   const completed = courses.filter((c) => c.total > 0 && c.completed === c.total)
@@ -209,6 +213,7 @@ export default function ProfilePage() {
         open={pickerOpen}
         current={avatar}
         level={level}
+        invites={invites}
         name={fullName}
         onClose={() => setPickerOpen(false)}
         onSelect={async (id) => {
@@ -468,6 +473,16 @@ export default function ProfilePage() {
             <button type="button" onClick={() => setPickerOpen(true)} className={quietButton}>
               Choose avatar
             </button>
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-brand-muted/15 pt-4">
+            <p className="text-sm text-brand-secondary">
+              <span className="text-brand-text">{friendsInfo?.friends ?? 0}</span>{' '}
+              {friendsInfo?.friends === 1 ? 'friend' : 'friends'}
+              {friendsInfo && friendsInfo.pending > 0 ? `, ${friendsInfo.pending} waiting for you` : ''}
+            </p>
+            <Link href="/friends" className={quietButton}>
+              Invite friends
+            </Link>
           </div>
         </section>
       </div>

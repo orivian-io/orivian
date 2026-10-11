@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { peekRememberedInvite } from '@/lib/friends'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -19,7 +20,9 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        data: { full_name: fullName },
+        // Kept on the account too, in case they confirm their email on
+        // another device (where the remembered invite isn't available).
+        data: { full_name: fullName, invite_code: peekRememberedInvite() || undefined },
       },
     })
 
@@ -104,4 +107,4 @@ export default function SignupPage() {
       </div>
     </main>
   )
-}
+}
