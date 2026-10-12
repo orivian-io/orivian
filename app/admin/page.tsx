@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import LiveActivity from '@/components/LiveActivity'
 import TrafficSection from '@/components/admin/TrafficSection'
+import FeedbackInbox from '@/components/admin/FeedbackInbox'
 import Avatar from '@/components/Avatar'
 import { getAvatar } from '@/lib/avatars'
 import { timeAgo } from '@/lib/live'
@@ -32,6 +33,7 @@ type CourseRequest = {
 }
 
 const SECTIONS = [
+  ['feedback', 'Feedback'],
   ['overview', 'Overview'],
   ['traffic', 'Traffic'],
   ['live', 'Live'],
@@ -213,6 +215,8 @@ export default function AdminPage() {
           The overview couldn&apos;t load. Has migration 0017 been run in Supabase?
         </p>
       )}
+
+      <FeedbackInbox />
 
       {/* Overview */}
       <section className="mb-14">

@@ -9,6 +9,7 @@ import NavStreak from '@/components/NavStreak'
 import AliasPrompt from '@/components/AliasPrompt'
 import Avatar from '@/components/Avatar'
 import NavFriends from '@/components/NavFriends'
+import NavAdmin from '@/components/NavAdmin'
 import InviteRedeemer from '@/components/InviteRedeemer'
 
 export default function Navbar() {
@@ -74,6 +75,7 @@ export default function Navbar() {
             <Link href="/notes" className="hover:text-brand-primary transition">
               Notes
             </Link>
+            {user.email === 'dan@orivian.io' && <NavAdmin />}
             <Link href="/profile" className="flex items-center gap-2 hover:text-brand-primary transition">
               <Avatar avatarId={avatar} name={user.user_metadata?.full_name || user.email} size={26} />
               Profile

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import ReportProblem from '@/components/ReportProblem'
 import { supabase } from '@/lib/supabase'
 import { notifyProgress } from '@/lib/stats'
 import { DomainIcon } from '@/lib/domain-icons'
@@ -387,7 +388,12 @@ export default function FinalExamPage() {
             <div className="space-y-6 mb-8">
               {questions.map((q, qi) => (
                 <div key={q.id} className="rounded-xl bg-brand-surface p-5">
-                  <p className="font-medium mb-3">{qi + 1}. {q.question_text}</p>
+                  <div className="mb-3 flex items-start justify-between gap-4">
+                    <p className="font-medium">{qi + 1}. {q.question_text}</p>
+                    <span className="shrink-0 pt-0.5">
+                      <ReportProblem variant="link" label="Report" target={{ context: 'final_exam', finalExamId: exam.id, questionId: q.id }} />
+                    </span>
+                  </div>
                   <div className="space-y-2">
                     {q.choices.map((choice) => {
                       const selected = (answers[q.id] || []).includes(choice.id)
@@ -459,6 +465,13 @@ export default function FinalExamPage() {
                     {r?.explanation && (
                       <p className="text-sm text-brand-secondary">{r.explanation}</p>
                     )}
+                    <div className="mt-2 text-right">
+                      <ReportProblem
+                        variant="link"
+                        label="Report a problem with this question"
+                        target={{ context: 'results', finalExamId: exam.id, questionId: q.id, snapshot: r?.explanation ? `Explanation: ${r.explanation}` : null }}
+                      />
+                    </div>
                   </div>
                 )
               })}

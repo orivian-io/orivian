@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import ResetProgressDialog from '@/components/ResetProgressDialog'
 import RemoveCourseDialog from '@/components/RemoveCourseDialog'
+import ReportProblem from '@/components/ReportProblem'
 import { DomainIcon } from '@/lib/domain-icons'
 import { renderInline } from '@/lib/inline-format'
 import type { User } from '@supabase/supabase-js'
@@ -700,6 +701,12 @@ export default function CoursePage() {
               </a>
             ))}
           </div>
+        </div>
+      )}
+      {user && (
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-brand-muted/15 pt-6 text-sm text-brand-secondary">
+          <span>Spotted a mistake or something unclear in this course?</span>
+          <ReportProblem label="Report a problem" target={{ context: 'course', courseId: course.id }} />
         </div>
       )}
       {resetTarget && (
