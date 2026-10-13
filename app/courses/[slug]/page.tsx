@@ -75,6 +75,21 @@ function formatDuration(totalMinutes: number): string {
   return minutes === 0 ? `~${hours}h` : `~${hours}h ${minutes}m`
 }
 
+const HIDE_COMPLETED_KEY = 'orivian.course.hideCompleted'
+
+// One stop on the learner's path through a course: a lesson, a domain
+// recap, or a domain checkpoint exam - in the order the page lists them.
+type Step = {
+  key: string
+  kind: 'lesson' | 'recap' | 'checkpoint'
+  sectionId: string | null
+  title: string
+  href: string
+  done: boolean
+  started: boolean
+  minutes: number
+}
+
 export default function CoursePage() {
   const params = useParams()
   const slug = params.slug as string
@@ -103,10 +118,35 @@ export default function CoursePage() {
   // Empty set = every domain starts collapsed; expanding one adds its
   // section id here.
   const [openSectionIds, setOpenSectionIds] = useState<Set<string>>(new Set())
+  // Until the learner opens or closes a domain themselves, the domain
+  // holding their next step starts open.
+  const [sectionsTouched, setSectionsTouched] = useState(false)
 
-  const toggleSection = (sectionId: string) => {
+  // "Hide completed" toggle, remembered on this device.
+  const [hideCompleted, setHideCompleted] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return window.localStorage.getItem(HIDE_COMPLETED_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleHideCompleted = () => {
+    setHideCompleted((prev) => {
+      const next = !prev
+      try {
+        window.localStorage.setItem(HIDE_COMPLETED_KEY, next ? '1' : '0')
+      } catch {
+        // Storage blocked - the toggle just won't be remembered.
+      }
+      return next
+    })
+  }
+
+  const toggleSection = (sectionId: string, autoOpenId: string | null) => {
     setOpenSectionIds((prev) => {
       const next = new Set(prev)
+      if (!sectionsTouched && autoOpenId) next.add(autoOpenId)
       if (next.has(sectionId)) {
         next.delete(sectionId)
       } else {
@@ -114,6 +154,7 @@ export default function CoursePage() {
       }
       return next
     })
+    setSectionsTouched(true)
   }
 
   useEffect(() => {
@@ -330,6 +371,54 @@ export default function CoursePage() {
     lessonsBySection.set(lesson.section_id, list)
   }
 
+  const lessonStep = (l: Lesson): Step => ({
+    key: l.id,
+    kind: l.lesson_type === 'recap' ? 'recap' : 'lesson',
+    sectionId: l.section_id,
+    title: l.title,
+    href: `/learn/${slug}/${l.id}`,
+    done: completedIds.has(l.id),
+    started: startedIds.has(l.id),
+    minutes: lessonMinutes(l, questionCounts.get(l.id) || 0),
+  })
+  const stepsBySection = new Map<string, Step[]>()
+  for (const section of sections) {
+    const sectionLessons = lessonsBySection.get(section.id) || []
+    if (sectionLessons.length === 0) continue
+    const steps = sectionLessons.map(lessonStep)
+    const recap = recapBySection.get(section.id)
+    if (recap) steps.push(lessonStep(recap))
+    const cpCount = checkpointCounts.get(section.id) || 0
+    if (cpCount > 0) {
+      steps.push({
+        key: `checkpoint-${section.id}`,
+        kind: 'checkpoint',
+        sectionId: section.id,
+        title: `${section.title}: full-domain exam`,
+        href: `/learn/${slug}/checkpoint/${section.id}`,
+        done: checkpointPassed.has(section.id),
+        started: checkpointBestScore.has(section.id),
+        minutes: Math.round(cpCount * MINUTES_PER_QUESTION),
+      })
+    }
+    stepsBySection.set(section.id, steps)
+  }
+  const allSteps = [
+    ...sections.flatMap((s) => stepsBySection.get(s.id) || []),
+    ...unsectioned.map(lessonStep),
+  ]
+  // Overall progress counts every step, so it matches the segmented bar.
+  const stepsPercent = allSteps.length > 0 ? Math.round((allSteps.filter((x) => x.done).length / allSteps.length) * 100) : percent
+  const nextStep = enrolled ? allSteps.find((st) => !st.done) ?? null : null
+  const nextSection = nextStep?.sectionId ? sections.find((s) => s.id === nextStep.sectionId) ?? null : null
+  const autoOpenId = !sectionsTouched && nextStep?.sectionId ? nextStep.sectionId : null
+  const hiddenDomains = hideCompleted
+    ? sections.filter((s) => {
+        const st = stepsBySection.get(s.id)
+        return !!st && st.every((x) => x.done)
+      })
+    : []
+
   return (
     <main className="max-w-4xl mx-auto py-16 px-4 sm:px-6">
       <h1 className="text-4xl font-medium mb-3">{course.title}</h1>
@@ -376,14 +465,47 @@ export default function CoursePage() {
       )}
 
       {user && enrolled && (
-        <div className="flex items-center gap-3 mb-10">
-          <div className="flex-1 h-1.5 bg-brand-muted/20 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-brand-primary rounded-full transition-all"
-              style={{ width: `${percent}%` }}
-            />
+        <div className="flex items-center gap-3 mb-6">
+          <div
+            className="flex-1 flex gap-1"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={stepsPercent}
+            aria-label="Course progress"
+          >
+            {sections.map((s) => {
+              const st = stepsBySection.get(s.id)
+              if (!st) return null
+              const done = st.filter((x) => x.done).length
+              return (
+                <div
+                  key={s.id}
+                  className="h-1.5 rounded-full bg-brand-muted/20 overflow-hidden"
+                  style={{ flexGrow: st.length, flexBasis: 0 }}
+                  title={`${s.title}: ${done} of ${st.length} done`}
+                >
+                  <div
+                    className="h-full rounded-full bg-brand-primary transition-[width] duration-500"
+                    style={{ width: `${(done / st.length) * 100}%` }}
+                  />
+                </div>
+              )
+            })}
+            {unsectioned.length > 0 && (() => {
+              const done = unsectioned.filter((l) => completedIds.has(l.id)).length
+              return (
+                <div
+                  className="h-1.5 rounded-full bg-brand-muted/20 overflow-hidden"
+                  style={{ flexGrow: unsectioned.length, flexBasis: 0 }}
+                  title={`More lessons: ${done} of ${unsectioned.length} done`}
+                >
+                  <div className="h-full rounded-full bg-brand-primary" style={{ width: `${(done / unsectioned.length) * 100}%` }} />
+                </div>
+              )
+            })()}
           </div>
-          <span className="text-sm text-brand-secondary whitespace-nowrap">{percent}% complete</span>
+          <span className="text-sm text-brand-secondary whitespace-nowrap">{stepsPercent}% complete</span>
           <button
             type="button"
             onClick={() => setResetTarget({ scope: 'course', id: course.id, title: course.title })}
@@ -402,6 +524,63 @@ export default function CoursePage() {
           </button>
         </div>
       )}
+      {user && enrolled && (
+        nextStep ? (
+          <Link
+            href={nextStep.href}
+            className="group mb-8 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 rounded-xl border border-brand-primary/40 bg-brand-primary/10 p-4 sm:p-5 hover:bg-brand-primary/15 transition"
+          >
+            {nextSection && (
+              <div className="hidden sm:flex shrink-0 h-11 w-11 rounded-full bg-brand-primary/15 items-center justify-center text-brand-primary">
+                <DomainIcon slug={nextSection.slug} className="w-6 h-6" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs uppercase tracking-wide text-brand-primary mb-0.5">
+                Up next{nextSection ? ` · ${nextSection.title}` : ''}
+              </p>
+              <p className="font-medium text-lg leading-snug">
+                {nextStep.kind === 'recap' ? 'Domain recap: ' : ''}
+                {nextStep.title}
+              </p>
+              {nextStep.minutes > 0 && (
+                <p className="text-xs text-brand-secondary mt-0.5">{formatDuration(nextStep.minutes)}</p>
+              )}
+            </div>
+            <span className="self-start sm:self-center shrink-0 bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium group-hover:bg-brand-primary-light transition">
+              {nextStep.started ? 'Continue →' : nextStep.kind === 'checkpoint' ? 'Start exam →' : 'Start →'}
+            </span>
+          </Link>
+        ) : allSteps.length > 0 ? (
+          <div className="mb-8 rounded-xl border border-brand-primary/40 bg-brand-primary/10 p-5 text-sm">
+            <p className="font-medium text-brand-primary">✓ You&apos;ve completed every lesson and checkpoint in this course.</p>
+            {finalExams.length > 0 && (
+              <p className="text-brand-secondary mt-1">Next step: take a full-length Final Exam below to test yourself under exam conditions.</p>
+            )}
+          </div>
+        ) : null
+      )}
+
+      {user && enrolled && allSteps.length > 0 && (
+        <div className="mb-6 flex items-center justify-end gap-3">
+          <label htmlFor="hide-completed" className="text-sm text-brand-secondary cursor-pointer select-none">
+            Hide completed
+          </label>
+          <button
+            id="hide-completed"
+            type="button"
+            role="switch"
+            aria-checked={hideCompleted}
+            onClick={toggleHideCompleted}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition ${hideCompleted ? 'bg-brand-primary' : 'bg-brand-muted/30'}`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-brand-bg shadow transition-transform ${hideCompleted ? 'translate-x-5' : ''}`}
+            />
+          </button>
+        </div>
+      )}
+
       <RemoveCourseDialog
         course={removing ? { id: course.id, title: course.title } : null}
         onClose={() => setRemoving(false)}
@@ -412,24 +591,36 @@ export default function CoursePage() {
       />
 
       <div className="space-y-10 mb-12">
+        {hiddenDomains.length > 0 && (
+          <p className="text-sm text-brand-secondary -mb-4">
+            <span className="text-brand-primary">✓</span> {hiddenDomains.length} completed domain{hiddenDomains.length === 1 ? '' : 's'} hidden
+            {' · '}
+            <button type="button" onClick={toggleHideCompleted} className="text-brand-primary hover:underline">
+              Show
+            </button>
+          </p>
+        )}
         {sections.map((section) => {
           const sectionLessons = lessonsBySection.get(section.id) || []
           if (sectionLessons.length === 0) return null
+          if (hiddenDomains.includes(section)) return null
+          const sectionSteps = stepsBySection.get(section.id) || []
+          const stepsDone = sectionSteps.filter((x) => x.done).length
+          const hiddenInSection = hideCompleted ? stepsDone : 0
           const sectionMinutes = sectionLessons.reduce(
             (sum, l) => sum + lessonMinutes(l, questionCounts.get(l.id) || 0),
             0
           )
 
-          const isOpen = openSectionIds.has(section.id)
-          const completedInSection = sectionLessons.filter((l) => completedIds.has(l.id)).length
-          const sectionDone = completedInSection === sectionLessons.length
-          const sectionPercent = Math.round((completedInSection / sectionLessons.length) * 100)
+          const isOpen = openSectionIds.has(section.id) || autoOpenId === section.id
+          const sectionDone = stepsDone === sectionSteps.length
+          const hasNext = nextStep?.sectionId === section.id
 
           return (
             <div key={section.id}>
               <button
                 type="button"
-                onClick={() => toggleSection(section.id)}
+                onClick={() => toggleSection(section.id, autoOpenId)}
                 aria-expanded={isOpen}
                 className="w-full flex items-start gap-4 mb-4 text-left group cursor-pointer rounded-xl -mx-3 px-3 py-2 hover:bg-brand-surface active:bg-brand-surface-raised transition-colors"
               >
@@ -465,28 +656,46 @@ export default function CoursePage() {
                   {enrolled && (
                     <div className="mt-3 flex items-center gap-3 max-w-xl">
                       <div
-                        className="flex-1 h-1.5 rounded-full bg-brand-muted/20 overflow-hidden"
+                        className="flex-1 flex gap-[3px]"
                         role="progressbar"
                         aria-valuemin={0}
-                        aria-valuemax={sectionLessons.length}
-                        aria-valuenow={completedInSection}
+                        aria-valuemax={sectionSteps.length}
+                        aria-valuenow={stepsDone}
                         aria-label={`${section.title} progress`}
                       >
-                        <div
-                          className="h-full rounded-full bg-brand-primary transition-[width] duration-500"
-                          style={{ width: `${sectionPercent}%` }}
-                        />
+                        {sectionSteps.map((st) => {
+                          const isNext = nextStep?.key === st.key
+                          return (
+                            <span
+                              key={st.key}
+                              title={`${st.kind === 'recap' ? 'Recap: ' : st.kind === 'checkpoint' ? 'Checkpoint: ' : ''}${st.title}${
+                                st.done ? ' - done' : isNext ? ' - up next' : st.started ? ' - in progress' : ''
+                              }`}
+                              className={`h-1.5 flex-1 rounded-full transition-colors ${
+                                st.done
+                                  ? 'bg-brand-primary'
+                                  : isNext
+                                    ? 'bg-brand-primary/35 ring-1 ring-brand-primary/80'
+                                    : st.started
+                                      ? 'bg-brand-primary/35'
+                                      : 'bg-brand-muted/20'
+                              } ${st.kind === 'checkpoint' ? 'max-w-[2.5rem]' : ''}`}
+                            />
+                          )
+                        })}
                       </div>
                       <span
                         className={`text-xs whitespace-nowrap tabular-nums ${
-                          sectionDone ? 'text-brand-primary font-medium' : completedInSection > 0 ? 'text-brand-text' : 'text-brand-muted'
+                          sectionDone ? 'text-brand-primary font-medium' : hasNext ? 'text-brand-primary' : stepsDone > 0 ? 'text-brand-text' : 'text-brand-muted'
                         }`}
                       >
                         {sectionDone
                           ? '✓ Complete'
-                          : completedInSection > 0
-                            ? `${completedInSection} of ${sectionLessons.length} done`
-                            : 'Not started'}
+                          : hasNext
+                            ? `Up next · ${stepsDone} of ${sectionSteps.length}`
+                            : stepsDone > 0
+                              ? `${stepsDone} of ${sectionSteps.length} done`
+                              : 'Not started'}
                       </span>
                     </div>
                   )}
@@ -502,8 +711,15 @@ export default function CoursePage() {
 
               {isOpen && (
               <div className="space-y-1">
+                {hiddenInSection > 0 && (
+                  <p className="text-xs text-brand-muted pb-1">
+                    {hiddenInSection} completed item{hiddenInSection === 1 ? '' : 's'} hidden
+                  </p>
+                )}
                 {sectionLessons.map((lesson) => {
                   const isComplete = completedIds.has(lesson.id)
+                  if (hideCompleted && isComplete) return null
+                  const isNext = nextStep?.key === lesson.id
                   const isStarted = !isComplete && startedIds.has(lesson.id)
                   const bestScore = bestScoreByLesson.get(lesson.id)
                   const hasAttempts = attemptedLessonIds.has(lesson.id)
@@ -512,10 +728,14 @@ export default function CoursePage() {
 
                   let statusLabel = 'Start lesson →'
                   let statusClass = 'text-sm text-brand-secondary'
+                  if (isNext) {
+                    statusLabel = isStarted ? 'Continue →' : 'Start →'
+                    statusClass = 'text-sm text-brand-primary font-medium'
+                  }
                   if (isComplete) {
                     statusLabel = '✓ Completed'
                     statusClass = 'text-sm text-brand-primary'
-                  } else if (isStarted) {
+                  } else if (isStarted && !isNext) {
                     statusLabel = 'Continue lesson →'
                     statusClass = 'text-sm text-brand-primary/80'
                   }
@@ -523,6 +743,11 @@ export default function CoursePage() {
                   const inner = (
                     <>
                       <div className="min-w-0">
+                        {isNext && (
+                          <span className="inline-block mb-1 rounded-full bg-brand-primary text-black text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
+                            Up next
+                          </span>
+                        )}
                         <div className="flex flex-wrap items-baseline gap-x-2">
                           <h3 className="font-medium">{lesson.title}</h3>
                           {(minutes > 0 || questionCount > 0) && (
@@ -553,7 +778,7 @@ export default function CoursePage() {
                     <div key={lesson.id} className="group relative">
                       <Link
                         href={`/learn/${slug}/${lesson.id}`}
-                        className={`rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-start justify-between gap-4 ${hasAttempts ? 'pb-10' : ''}`}
+                        className={`rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-start justify-between gap-4 ${hasAttempts ? 'pb-10' : ''} ${isNext ? 'ring-1 ring-brand-primary/70' : ''}`}
                       >
                         {inner}
                       </Link>
@@ -594,13 +819,22 @@ export default function CoursePage() {
                 {recapBySection.has(section.id) && (() => {
                   const recap = recapBySection.get(section.id)!
                   const isReviewed = completedIds.has(recap.id)
+                  if (hideCompleted && isReviewed) return null
+                  const isNext = nextStep?.key === recap.id
                   return enrolled ? (
                     <Link
                       href={`/learn/${slug}/${recap.id}`}
-                      className="rounded-xl border border-dashed border-brand-muted/40 hover:border-brand-primary/50 hover:bg-brand-surface transition p-4 flex items-start justify-between gap-4"
+                      className={`rounded-xl border border-dashed hover:border-brand-primary/50 hover:bg-brand-surface transition p-4 flex items-start justify-between gap-4 ${
+                        isNext ? 'border-brand-primary/70' : 'border-brand-muted/40'
+                      }`}
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-baseline gap-x-2">
+                          {isNext && (
+                            <span className="rounded-full bg-brand-primary text-black text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
+                              Up next
+                            </span>
+                          )}
                           <span className="text-xs uppercase tracking-wide text-brand-primary/80">Domain Recap</span>
                         </div>
                         <h3 className="font-medium mt-0.5">{recap.title}</h3>
@@ -624,15 +858,24 @@ export default function CoursePage() {
 
                 {(checkpointCounts.get(section.id) || 0) > 0 && (() => {
                   const passed = checkpointPassed.has(section.id)
+                  if (hideCompleted && passed) return null
                   const best = checkpointBestScore.get(section.id)
                   const qCount = checkpointCounts.get(section.id) || 0
+                  const isNext = nextStep?.key === `checkpoint-${section.id}`
                   return enrolled ? (
                     <Link
                       href={`/learn/${slug}/checkpoint/${section.id}`}
-                      className="rounded-xl bg-brand-surface-raised hover:bg-brand-surface transition p-4 flex items-start justify-between gap-4"
+                      className={`rounded-xl bg-brand-surface-raised hover:bg-brand-surface transition p-4 flex items-start justify-between gap-4 ${
+                        isNext ? 'ring-1 ring-brand-primary/70' : ''
+                      }`}
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-baseline gap-x-2">
+                          {isNext && (
+                            <span className="rounded-full bg-brand-primary text-black text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
+                              Up next
+                            </span>
+                          )}
                           <span className="text-xs uppercase tracking-wide text-brand-primary/80">Domain Checkpoint</span>
                         </div>
                         <h3 className="font-medium mt-0.5">{section.title}: full-domain exam</h3>
@@ -666,6 +909,7 @@ export default function CoursePage() {
             <div className="space-y-1">
               {unsectioned.map((lesson) => {
                 const isComplete = completedIds.has(lesson.id)
+                if (hideCompleted && isComplete) return null
                 return enrolled ? (
                   <Link
                     key={lesson.id}
