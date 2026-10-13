@@ -216,7 +216,25 @@ function diagramSpeech(d: Diagram | undefined): string {
 // The exact text that is spoken for a content block. Whitespace is
 // normalized so the browser and the generator always agree on it.
 export function blockToSpeechText(block: ContentBlock): string {
-  return rawSpeechText(block).replace(/\s+/g, ' ').trim()
+  return speakable(rawSpeechText(block)).replace(/\s+/g, ' ').trim()
+}
+
+// Smooths written punctuation that text-to-speech reads awkwardly. Spaced
+// dashes become pauses, spaced or en-dash number ranges are read as "to",
+// and a few written abbreviations are expanded. Hyphenated words
+// (non-repudiation, two-factor) and IDs like 800-88 or CVE-2021-44228 are
+// left alone.
+export function speakable(text: string): string {
+  return text
+    .replace(/(\d)\s*–\s*(\d)/g, '$1 to $2')
+    .replace(/(\d)\s+-\s+(\d)/g, '$1 to $2')
+    .replace(/\s+[-–—]+\s+/g, ', ')
+    .replace(/(\w)—(\w)/g, '$1, $2')
+    .replace(/\bvs\.?(?=\s)/gi, 'versus')
+    .replace(/\be\.g\.,?/gi, 'for example,')
+    .replace(/\bi\.e\.,?/gi, 'that is,')
+    .replace(/,\s*,/g, ',')
+    .replace(/,\s*([.!?:;])/g, '$1')
 }
 
 // Short stable fingerprint of a block's speech text (FNV-1a, 2 rounds).

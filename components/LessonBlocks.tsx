@@ -399,15 +399,30 @@ function ItemNotes({ items, labelWidth }: { items: (DiagramItem | undefined)[]; 
 }
 
 function Flow({ steps }: { steps: DiagramItem[] }) {
+  const box = (s: DiagramItem, i: number) => (
+    <div className={`h-full rounded-lg border px-3 py-3 ${s.muted ? 'border-dashed border-brand-muted/50' : 'border-brand-primary/40 bg-brand-primary/[0.06]'}`}>
+      <p className="font-display text-xs italic text-brand-primary">{i + 1}</p>
+      <p className="font-medium leading-snug">{s.label}</p>
+      {s.note && <p className="mt-1 text-sm leading-snug text-brand-secondary">{renderInline(s.note)}</p>}
+    </div>
+  )
+  // Long sequences wrap into a numbered grid instead of one cramped row.
+  if (steps.length > 4) {
+    return (
+      <ol className={`grid gap-2 grid-cols-1 sm:grid-cols-3 ${steps.length > 6 ? 'lg:grid-cols-4' : ''}`}>
+        {steps.map((s, i) => (
+          <li key={s.label} className="min-w-0">
+            {box(s, i)}
+          </li>
+        ))}
+      </ol>
+    )
+  }
   return (
     <ol className="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-0">
       {steps.map((s, i) => (
-        <li key={s.label} className="flex flex-col sm:flex-1 sm:flex-row sm:items-stretch">
-          <div className={`flex-1 rounded-lg border px-3 py-3 ${s.muted ? 'border-dashed border-brand-muted/50' : 'border-brand-primary/40 bg-brand-primary/[0.06]'}`}>
-            <p className="font-display text-xs italic text-brand-primary">{i + 1}</p>
-            <p className="font-medium leading-snug">{s.label}</p>
-            {s.note && <p className="mt-1 text-sm leading-snug text-brand-secondary">{renderInline(s.note)}</p>}
-          </div>
+        <li key={s.label} className="flex min-w-0 flex-col sm:flex-1 sm:basis-0 sm:flex-row sm:items-stretch">
+          <div className="min-w-0 flex-1">{box(s, i)}</div>
           {i < steps.length - 1 && (
             <span className="self-center px-1.5 py-0.5 text-brand-muted sm:py-0" aria-hidden="true">
               <span className="sm:hidden">↓</span>
