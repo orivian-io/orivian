@@ -87,6 +87,8 @@ type Step = {
   href: string
   done: boolean
   started: boolean
+  // Exam taken but not passed yet (best score, if any).
+  failedScore: number | null
   minutes: number
 }
 
@@ -379,6 +381,7 @@ export default function CoursePage() {
     href: `/learn/${slug}/${l.id}`,
     done: completedIds.has(l.id),
     started: startedIds.has(l.id),
+    failedScore: !completedIds.has(l.id) && bestScoreByLesson.has(l.id) ? bestScoreByLesson.get(l.id)! : null,
     minutes: lessonMinutes(l, questionCounts.get(l.id) || 0),
   })
   const stepsBySection = new Map<string, Step[]>()
@@ -398,6 +401,8 @@ export default function CoursePage() {
         href: `/learn/${slug}/checkpoint/${section.id}`,
         done: checkpointPassed.has(section.id),
         started: checkpointBestScore.has(section.id),
+        failedScore:
+          !checkpointPassed.has(section.id) && checkpointBestScore.has(section.id) ? checkpointBestScore.get(section.id)! : null,
         minutes: Math.round(cpCount * MINUTES_PER_QUESTION),
       })
     }
@@ -543,12 +548,23 @@ export default function CoursePage() {
                 {nextStep.kind === 'recap' ? 'Domain recap: ' : ''}
                 {nextStep.title}
               </p>
-              {nextStep.minutes > 0 && (
-                <p className="text-xs text-brand-secondary mt-0.5">{formatDuration(nextStep.minutes)}</p>
+              {nextStep.failedScore !== null ? (
+                <p className="text-xs mt-0.5">
+                  <span className="text-brand-alert">Not passed yet · best {Math.round(nextStep.failedScore)}%</span>
+                  <span className="text-brand-secondary"> · 80% to pass</span>
+                </p>
+              ) : (
+                nextStep.minutes > 0 && <p className="text-xs text-brand-secondary mt-0.5">{formatDuration(nextStep.minutes)}</p>
               )}
             </div>
             <span className="self-start sm:self-center shrink-0 bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium group-hover:bg-brand-primary-light transition">
-              {nextStep.started ? 'Continue →' : nextStep.kind === 'checkpoint' ? 'Start exam →' : 'Start →'}
+              {nextStep.failedScore !== null
+                ? 'Try again →'
+                : nextStep.started
+                  ? 'Continue →'
+                  : nextStep.kind === 'checkpoint'
+                    ? 'Start exam →'
+                    : 'Start →'}
             </span>
           </Link>
         ) : allSteps.length > 0 ? (
@@ -666,12 +682,22 @@ export default function CoursePage() {
                             <span
                               key={st.key}
                               title={`${st.kind === 'recap' ? 'Recap: ' : st.kind === 'checkpoint' ? 'Checkpoint: ' : ''}${st.title}${
-                                st.done ? ' - done' : isNext ? ' - up next' : st.started ? ' - in progress' : ''
+                                st.done
+                                  ? ' - done'
+                                  : st.failedScore !== null
+                                    ? ` - not passed yet (best ${Math.round(st.failedScore)}%)${isNext ? ', up next' : ''}`
+                                    : isNext
+                                      ? ' - up next'
+                                      : st.started
+                                        ? ' - in progress'
+                                        : ''
                               }`}
                               className={`h-1.5 flex-1 rounded-full transition-colors ${
                                 st.done
                                   ? 'bg-brand-success'
-                                  : isNext
+                                  : st.failedScore !== null
+                                    ? `bg-brand-alert ${isNext ? 'ring-1 ring-brand-primary/80' : ''}`
+                                    : isNext
                                     ? 'bg-brand-primary/35 ring-1 ring-brand-primary/80'
                                     : st.started
                                       ? 'bg-brand-primary/35'
@@ -725,14 +751,18 @@ export default function CoursePage() {
 
                   let statusLabel = 'Start lesson →'
                   let statusClass = 'text-sm text-brand-secondary'
+                  const isFailed = !isComplete && typeof bestScore === 'number'
                   if (isNext) {
-                    statusLabel = isStarted ? 'Continue →' : 'Start →'
+                    statusLabel = isFailed ? 'Try again →' : isStarted ? 'Continue →' : 'Start →'
                     statusClass = 'text-sm text-brand-primary font-medium'
+                  } else if (isFailed) {
+                    statusLabel = 'Try again →'
+                    statusClass = 'text-sm text-brand-alert'
                   }
                   if (isComplete) {
                     statusLabel = '✓ Completed'
                     statusClass = 'text-sm text-brand-success'
-                  } else if (isStarted && !isNext) {
+                  } else if (isStarted && !isNext && !isFailed) {
                     statusLabel = 'Continue lesson →'
                     statusClass = 'text-sm text-brand-primary/80'
                   }
@@ -763,7 +793,7 @@ export default function CoursePage() {
                         )}
                         {isStarted && typeof bestScore === 'number' && (
                           <p className="text-xs text-brand-secondary mt-1">
-                            Last attempt: {bestScore}% (80% needed to pass)
+                            <span className="text-brand-alert">Best attempt: {bestScore}%</span> (80% needed to pass)
                           </p>
                         )}
                       </div>
@@ -881,7 +911,7 @@ export default function CoursePage() {
                           <p className="text-xs text-brand-secondary mt-1">Best score: {best}%</p>
                         )}
                       </div>
-                      <span className={`${passed ? 'text-brand-success' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
+                      <span className={`${passed ? 'text-brand-success' : typeof best === 'number' ? 'text-brand-alert' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
                         {passed ? '✓ Passed' : typeof best === 'number' ? 'Try again →' : 'Start →'}
                       </span>
                     </Link>

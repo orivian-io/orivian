@@ -9,6 +9,8 @@
   --color-brand-primary-light: #E4C473;
   /* Completed / passed / correct. Gold stays for in-progress and next steps. */
   --color-brand-success: #8FB39A;
+  /* Attempted but not passed yet - a warm terracotta that sits with the gold. */
+  --color-brand-alert: #D97A5F;
   --color-brand-secondary: #8F949B;
   --color-brand-text: #F2F3F4;
   --color-brand-muted: #626971;
