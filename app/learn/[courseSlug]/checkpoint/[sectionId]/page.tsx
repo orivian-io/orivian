@@ -285,7 +285,7 @@ export default function DomainCheckpointPage() {
                 const r = result.results.find((r) => r.questionId === q.id)
                 return (
                   <div key={q.id} className="rounded-xl bg-brand-surface p-4">
-                    <p className={`text-sm font-medium mb-1 ${r?.correct ? 'text-brand-primary' : 'text-red-500'}`}>
+                    <p className={`text-sm font-medium mb-1 ${r?.correct ? 'text-brand-success' : 'text-red-500'}`}>
                       {r?.correct ? '✓' : '✗'} {qi + 1}. {q.question_text}
                     </p>
                     {r?.explanation && (

@@ -138,7 +138,7 @@ export default function ExamReviewPage() {
                       : 'border-brand-muted/25 hover:border-brand-muted/60'
                   }`}
                 >
-                  <span className={`block text-sm font-medium tabular-nums ${a.passed ? 'text-brand-primary' : 'text-red-400'}`}>
+                  <span className={`block text-sm font-medium tabular-nums ${a.passed ? 'text-brand-success' : 'text-red-400'}`}>
                     {a.passed ? '✓' : '✗'} {Math.round(a.scorePercent)}%
                   </span>
                   <span className="block text-xs text-brand-secondary whitespace-nowrap">
@@ -180,10 +180,10 @@ export default function ExamReviewPage() {
                 {shown.map((q) => (
                   <div
                     key={q.questionId}
-                    className={`rounded-xl bg-brand-surface p-5 border-l-2 ${q.correct ? 'border-brand-primary' : 'border-red-500'}`}
+                    className={`rounded-xl bg-brand-surface p-5 border-l-2 ${q.correct ? 'border-brand-success' : 'border-red-500'}`}
                   >
                     <p className="font-medium mb-3">
-                      <span className={q.correct ? 'text-brand-primary' : 'text-red-400'}>{q.correct ? '✓' : '✗'}</span>{' '}
+                      <span className={q.correct ? 'text-brand-success' : 'text-red-400'}>{q.correct ? '✓' : '✗'}</span>{' '}
                       {q.questionText}
                     </p>
                     <AnswerChoices

@@ -581,7 +581,7 @@ export default function ProfilePage() {
                       <Link href={`/courses/${c.slug}`} className="font-display text-lg hover:text-brand-primary">
                         {c.title}
                       </Link>
-                      {isDone && <span className="text-sm text-brand-primary">✓ Completed</span>}
+                      {isDone && <span className="text-sm text-brand-success">✓ Completed</span>}
                     </div>
                     <div className="mt-3 flex items-center gap-3">
                       <div

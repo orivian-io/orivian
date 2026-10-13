@@ -7,6 +7,8 @@
   --color-brand-primary: #C19955;
   --color-brand-primary-dark: #A77C35;
   --color-brand-primary-light: #E4C473;
+  /* Completed / passed / correct. Gold stays for in-progress and next steps. */
+  --color-brand-success: #8FB39A;
   --color-brand-secondary: #8F949B;
   --color-brand-text: #F2F3F4;
   --color-brand-muted: #626971;

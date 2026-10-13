@@ -486,7 +486,7 @@ export default function CoursePage() {
                   title={`${s.title}: ${done} of ${st.length} done`}
                 >
                   <div
-                    className="h-full rounded-full bg-brand-primary transition-[width] duration-500"
+                    className="h-full rounded-full bg-brand-success transition-[width] duration-500"
                     style={{ width: `${(done / st.length) * 100}%` }}
                   />
                 </div>
@@ -500,7 +500,7 @@ export default function CoursePage() {
                   style={{ flexGrow: unsectioned.length, flexBasis: 0 }}
                   title={`More lessons: ${done} of ${unsectioned.length} done`}
                 >
-                  <div className="h-full rounded-full bg-brand-primary" style={{ width: `${(done / unsectioned.length) * 100}%` }} />
+                  <div className="h-full rounded-full bg-brand-success" style={{ width: `${(done / unsectioned.length) * 100}%` }} />
                 </div>
               )
             })()}
@@ -552,8 +552,8 @@ export default function CoursePage() {
             </span>
           </Link>
         ) : allSteps.length > 0 ? (
-          <div className="mb-8 rounded-xl border border-brand-primary/40 bg-brand-primary/10 p-5 text-sm">
-            <p className="font-medium text-brand-primary">✓ You&apos;ve completed every lesson and checkpoint in this course.</p>
+          <div className="mb-8 rounded-xl border border-brand-success/40 bg-brand-success/10 p-5 text-sm">
+            <p className="font-medium text-brand-success">✓ You&apos;ve completed every lesson and checkpoint in this course.</p>
             {finalExams.length > 0 && (
               <p className="text-brand-secondary mt-1">Next step: take a full-length Final Exam below to test yourself under exam conditions.</p>
             )}
@@ -565,7 +565,7 @@ export default function CoursePage() {
         <div className="mb-6 flex items-center justify-end gap-3">
           {hiddenDomains.length > 0 && (
             <p className="mr-auto text-sm text-brand-secondary">
-              <span className="text-brand-primary">✓</span> {hiddenDomains.length} completed domain
+              <span className="text-brand-success">✓</span> {hiddenDomains.length} completed domain
               {hiddenDomains.length === 1 ? '' : 's'} hidden
             </p>
           )}
@@ -624,14 +624,14 @@ export default function CoursePage() {
                 <div
                   className={`relative shrink-0 h-11 w-11 rounded-full flex items-center justify-center transition-colors ${
                     enrolled && sectionDone
-                      ? 'bg-brand-primary text-black'
+                      ? 'bg-brand-success/15 text-brand-success'
                       : 'bg-brand-primary/10 text-brand-primary'
                   }`}
                 >
                   <DomainIcon slug={section.slug} className="w-6 h-6" />
                   {enrolled && sectionDone && (
                     <span
-                      className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-brand-bg border border-brand-primary text-brand-primary text-[10px] leading-none flex items-center justify-center"
+                      className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-brand-success border border-brand-success text-black text-[10px] font-bold leading-none flex items-center justify-center"
                       aria-hidden="true"
                     >
                       ✓
@@ -670,7 +670,7 @@ export default function CoursePage() {
                               }`}
                               className={`h-1.5 flex-1 rounded-full transition-colors ${
                                 st.done
-                                  ? 'bg-brand-primary'
+                                  ? 'bg-brand-success'
                                   : isNext
                                     ? 'bg-brand-primary/35 ring-1 ring-brand-primary/80'
                                     : st.started
@@ -683,7 +683,7 @@ export default function CoursePage() {
                       </div>
                       <span
                         className={`text-xs whitespace-nowrap tabular-nums ${
-                          sectionDone ? 'text-brand-primary font-medium' : hasNext ? 'text-brand-primary' : stepsDone > 0 ? 'text-brand-text' : 'text-brand-muted'
+                          sectionDone ? 'text-brand-success font-medium' : hasNext ? 'text-brand-primary' : stepsDone > 0 ? 'text-brand-text' : 'text-brand-muted'
                         }`}
                       >
                         {sectionDone
@@ -731,7 +731,7 @@ export default function CoursePage() {
                   }
                   if (isComplete) {
                     statusLabel = '✓ Completed'
-                    statusClass = 'text-sm text-brand-primary'
+                    statusClass = 'text-sm text-brand-success'
                   } else if (isStarted && !isNext) {
                     statusLabel = 'Continue lesson →'
                     statusClass = 'text-sm text-brand-primary/80'
@@ -839,7 +839,7 @@ export default function CoursePage() {
                           <p className="text-sm text-brand-text/80 mt-1 max-w-xl">{renderInline(recap.summary)}</p>
                         )}
                       </div>
-                      <span className={`${isReviewed ? 'text-brand-primary' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
+                      <span className={`${isReviewed ? 'text-brand-success' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
                         {isReviewed ? '✓ Reviewed' : 'Review →'}
                       </span>
                     </Link>
@@ -881,7 +881,7 @@ export default function CoursePage() {
                           <p className="text-xs text-brand-secondary mt-1">Best score: {best}%</p>
                         )}
                       </div>
-                      <span className={`${passed ? 'text-brand-primary' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
+                      <span className={`${passed ? 'text-brand-success' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
                         {passed ? '✓ Passed' : typeof best === 'number' ? 'Try again →' : 'Start →'}
                       </span>
                     </Link>
@@ -914,7 +914,7 @@ export default function CoursePage() {
                     className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-center justify-between"
                   >
                     <h3 className="font-medium">{lesson.title}</h3>
-                    <span className={isComplete ? 'text-sm text-brand-primary' : 'text-sm text-brand-secondary'}>
+                    <span className={isComplete ? 'text-sm text-brand-success' : 'text-sm text-brand-secondary'}>
                       {isComplete ? '✓ Completed' : 'Start lesson →'}
                     </span>
                   </Link>
@@ -970,7 +970,7 @@ export default function CoursePage() {
                       </p>
                     )}
                   </div>
-                  <span className={`${best?.passed ? 'text-brand-primary' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
+                  <span className={`${best?.passed ? 'text-brand-success' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
                     {best ? 'Retake →' : 'Start →'}
                   </span>
                 </Link>
