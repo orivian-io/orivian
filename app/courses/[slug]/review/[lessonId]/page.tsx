@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import AnswerChoices from '@/components/AnswerChoices'
 
 type ReviewAnswer = {
   questionId: string
@@ -185,25 +186,11 @@ export default function ExamReviewPage() {
                       <span className={q.correct ? 'text-brand-primary' : 'text-red-400'}>{q.correct ? '✓' : '✗'}</span>{' '}
                       {q.questionText}
                     </p>
-                    <ul className="space-y-1.5 mb-3">
-                      {q.choices.map((c) => {
-                        const picked = q.selectedChoiceIds.includes(c.id)
-                        const isRight = q.correctChoiceIds.includes(c.id)
-                        let cls = 'border-brand-muted/20 text-brand-text/80'
-                        if (isRight) cls = 'border-brand-primary/60 bg-brand-primary/10 text-brand-text'
-                        else if (picked) cls = 'border-red-500/60 bg-red-500/10 text-brand-text'
-                        return (
-                          <li key={c.id} className={`flex items-start justify-between gap-3 rounded-md border px-3 py-2 text-sm ${cls}`}>
-                            <span>{c.text}</span>
-                            <span className="shrink-0 text-xs">
-                              {isRight && picked && <span className="text-brand-primary">Your answer · Correct</span>}
-                              {isRight && !picked && <span className="text-brand-primary">Correct answer</span>}
-                              {!isRight && picked && <span className="text-red-400">Your answer</span>}
-                            </span>
-                          </li>
-                        )
-                      })}
-                    </ul>
+                    <AnswerChoices
+                      choices={q.choices}
+                      selectedChoiceIds={q.selectedChoiceIds}
+                      correctChoiceIds={q.correctChoiceIds}
+                    />
                     {q.explanation && <p className="text-sm text-brand-secondary">{q.explanation}</p>}
                   </div>
                 ))}
@@ -213,8 +200,14 @@ export default function ExamReviewPage() {
 
           <div className="mt-10 flex flex-wrap gap-3">
             <Link
-              href={`/learn/${slug}/${lessonId}`}
+              href={`/learn/${slug}/${lessonId}?retake=1`}
               className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition"
+            >
+              ↻ Retake exam
+            </Link>
+            <Link
+              href={`/learn/${slug}/${lessonId}`}
+              className="border border-brand-primary/50 text-brand-primary px-4 py-2.5 rounded-md text-sm hover:bg-brand-primary/10 transition"
             >
               Review the lesson
             </Link>

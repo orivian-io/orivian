@@ -15,6 +15,7 @@ import LessonNotes from '@/components/LessonNotes'
 import SaveSelectionButton from '@/components/SaveSelectionButton'
 import { DomainIcon } from '@/lib/domain-icons'
 import VoiceSettings from '@/components/VoiceSettings'
+import AnswerChoices from '@/components/AnswerChoices'
 import { renderInline } from '@/lib/inline-format'
 import { formatDuration } from '@/lib/format-duration'
 
@@ -40,8 +41,10 @@ type ExamResult = {
   correctCount: number
   questionCount: number
   passThreshold: number
-  results: { questionId: string; correct: boolean; explanation: string | null }[]
+  results: { questionId: string; correct: boolean; explanation: string | null; correctChoiceIds?: string[] }[]
 }
+
+type NextLesson = { id: string; title: string }
 
 type Phase = 'loading' | 'content' | 'exam' | 'results' | 'not-found'
 
@@ -63,6 +66,10 @@ export default function LessonPlayerPage() {
   // Number of mini-exam questions, shown on the Start button.
   const [questionCount, setQuestionCount] = useState<number | null>(null)
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
+
+  // The lesson that follows this one in the course (null if this is the
+  // last one), for the "Next lesson" buttons.
+  const [nextLesson, setNextLesson] = useState<NextLesson | null>(null)
 
   const [questions, setQuestions] = useState<ExamQuestion[]>([])
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
@@ -112,6 +119,8 @@ export default function LessonPlayerPage() {
       listLessonNotes(data.id)
         .then(setNotes)
         .catch(() => setNotes([]))
+
+      if (course?.id) void loadNextLesson(course.id, data.id).then(setNextLesson)
 
       // Same security-definer count the course page uses (question content
       // itself is never readable from the browser).
@@ -223,7 +232,11 @@ export default function LessonPlayerPage() {
     })
     notifyProgress()
 
-    router.push(`/courses/${lesson?.course?.slug || courseSlug}`)
+    router.push(
+      nextLesson
+        ? `/learn/${lesson?.course?.slug || courseSlug}/${nextLesson.id}`
+        : `/courses/${lesson?.course?.slug || courseSlug}`
+    )
   }
 
   const startExam = async () => {
@@ -275,6 +288,24 @@ export default function LessonPlayerPage() {
       setLoadingExam(false)
     }
   }
+
+  // "Retake exam" from the attempt review page links here with ?retake=1 -
+  // skip the slides and go straight into a fresh attempt.
+  const retakeRequested = useRef(false)
+  useEffect(() => {
+    retakeRequested.current = new URLSearchParams(window.location.search).get('retake') === '1'
+  }, [])
+  useEffect(() => {
+    if (phase !== 'content' || !lesson || !retakeRequested.current) return
+    if (lesson.lesson_type === 'recap' || lesson.lesson_type === 'orientation') return
+    const timer = setTimeout(() => {
+      retakeRequested.current = false
+      window.history.replaceState(null, '', window.location.pathname)
+      void startExam()
+    }, 0)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, lesson])
 
   const toggleAnswer = (questionId: string, choiceId: string, questionType: 'single' | 'multi') => {
     setAnswers((prev) => {
@@ -448,7 +479,7 @@ export default function LessonPlayerPage() {
                       disabled={completingNonExam}
                       className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition disabled:opacity-40"
                     >
-                      {completingNonExam ? 'Saving…' : 'Mark as reviewed'}
+                      {completingNonExam ? 'Saving…' : nextLesson ? 'Mark as reviewed & continue →' : 'Mark as reviewed'}
                     </button>
                   ) : lesson.lesson_type === 'orientation' ? (
                     <button
@@ -456,7 +487,7 @@ export default function LessonPlayerPage() {
                       disabled={completingNonExam}
                       className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition disabled:opacity-40"
                     >
-                      {completingNonExam ? 'Saving…' : 'Mark as complete'}
+                      {completingNonExam ? 'Saving…' : nextLesson ? 'Mark as complete & continue →' : 'Mark as complete'}
                     </button>
                   ) : (
                     <button
@@ -572,9 +603,16 @@ export default function LessonPlayerPage() {
                 const r = result.results.find((r) => r.questionId === q.id)
                 return (
                   <div key={q.id} className="rounded-xl bg-brand-surface p-4">
-                    <p className={`text-sm font-medium mb-1 ${r?.correct ? 'text-brand-primary' : 'text-red-500'}`}>
+                    <p className={`text-sm font-medium ${r?.correctChoiceIds ? 'mb-3' : 'mb-1'} ${r?.correct ? 'text-brand-primary' : 'text-red-500'}`}>
                       {r?.correct ? '✓' : '✗'} {qi + 1}. {q.question_text}
                     </p>
+                    {r?.correctChoiceIds && (
+                      <AnswerChoices
+                        choices={q.choices}
+                        selectedChoiceIds={answers[q.id] || []}
+                        correctChoiceIds={r.correctChoiceIds}
+                      />
+                    )}
                     {r?.explanation && (
                       <p className="text-sm text-brand-secondary">{r.explanation}</p>
                     )}
@@ -592,19 +630,37 @@ export default function LessonPlayerPage() {
 
             <div className="flex flex-wrap items-center gap-3">
               {result.passed ? (
-                <Link
-                  href={`/courses/${lesson.course?.slug || courseSlug}`}
-                  className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition"
-                >
-                  Back to course
-                </Link>
+                <>
+                  {nextLesson ? (
+                    <Link
+                      href={`/learn/${lesson.course?.slug || courseSlug}/${nextLesson.id}`}
+                      className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition"
+                      title={nextLesson.title}
+                    >
+                      Next lesson →
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/courses/${lesson.course?.slug || courseSlug}`}
+                      className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition"
+                    >
+                      Back to course
+                    </Link>
+                  )}
+                  <button
+                    onClick={startExam}
+                    className="border border-brand-primary/50 text-brand-primary px-4 py-2.5 rounded-md text-sm hover:bg-brand-primary/10 transition"
+                  >
+                    ↻ Retake exam
+                  </button>
+                </>
               ) : (
                 <>
                   <button
                     onClick={startExam}
                     className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition"
                   >
-                    Try again
+                    ↻ Try again
                   </button>
                   <button
                     onClick={() => { stopNarration(); setPhase('content'); setBlockIndex(0) }}
@@ -612,6 +668,15 @@ export default function LessonPlayerPage() {
                   >
                     Review lesson
                   </button>
+                  {nextLesson && (
+                    <Link
+                      href={`/learn/${lesson.course?.slug || courseSlug}/${nextLesson.id}`}
+                      className="text-sm text-brand-secondary hover:text-brand-text transition px-3 py-2.5"
+                      title={nextLesson.title}
+                    >
+                      Skip to next lesson
+                    </Link>
+                  )}
                 </>
               )}
               <Link
@@ -620,7 +685,18 @@ export default function LessonPlayerPage() {
               >
                 All attempts →
               </Link>
+              {result.passed && nextLesson && (
+                <Link
+                  href={`/courses/${lesson.course?.slug || courseSlug}`}
+                  className="text-sm text-brand-secondary hover:text-brand-text transition px-3 py-2.5"
+                >
+                  Back to course
+                </Link>
+              )}
             </div>
+            {result.passed && nextLesson && (
+              <p className="mt-3 text-xs text-brand-secondary">Up next: {nextLesson.title}</p>
+            )}
           </div>
         )}
       </div>
@@ -722,4 +798,35 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
     default:
       return null
   }
+}
+
+// Finds the lesson after `lessonId` in course order: domains by their order,
+// each domain's lessons by order with its recap last, then any lessons that
+// aren't in a domain - the same order the course page lists them in.
+async function loadNextLesson(courseId: string, lessonId: string): Promise<NextLesson | null> {
+  const [{ data: sections }, { data: lessons }] = await Promise.all([
+    supabase.from('sections').select('id, order_index').eq('course_id', courseId),
+    supabase
+      .from('lessons')
+      .select('id, title, section_id, order_index, lesson_type')
+      .eq('course_id', courseId)
+      .order('order_index'),
+  ])
+  if (!lessons) return null
+
+  const sectionOrder = new Map((sections || []).map((s) => [s.id, s.order_index as number]))
+  const rank = (l: { section_id: string | null; lesson_type: string | null; order_index: number }) => [
+    l.section_id && sectionOrder.has(l.section_id) ? (sectionOrder.get(l.section_id) as number) : Number.MAX_SAFE_INTEGER,
+    l.lesson_type === 'recap' ? 1 : 0,
+    l.order_index,
+  ]
+  const ordered = [...lessons].sort((a, b) => {
+    const ra = rank(a)
+    const rb = rank(b)
+    for (let i = 0; i < ra.length; i++) if (ra[i] !== rb[i]) return ra[i] - rb[i]
+    return 0
+  })
+  const i = ordered.findIndex((l) => l.id === lessonId)
+  const next = i >= 0 ? ordered[i + 1] : undefined
+  return next ? { id: next.id, title: next.title } : null
 }

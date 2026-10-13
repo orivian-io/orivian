@@ -126,6 +126,8 @@ export async function POST(req: NextRequest) {
       questionId: a.question_id,
       correct: a.correct,
       explanation: explanationByQuestion.get(a.question_id) || null,
+      // Safe to reveal now: the attempt has already been graded and saved.
+      correctChoiceIds: [...(correctByQuestion.get(a.question_id) || [])],
     })),
   })
 }
