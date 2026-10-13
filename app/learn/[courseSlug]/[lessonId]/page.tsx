@@ -17,6 +17,7 @@ import SaveSelectionButton from '@/components/SaveSelectionButton'
 import { DomainIcon } from '@/lib/domain-icons'
 import VoiceSettings from '@/components/VoiceSettings'
 import AnswerChoices from '@/components/AnswerChoices'
+import RichBlockView, { isRichBlock, isWideBlock } from '@/components/LessonBlocks'
 import { renderInline } from '@/lib/inline-format'
 import { formatDuration } from '@/lib/format-duration'
 
@@ -466,8 +467,8 @@ export default function LessonPlayerPage() {
               ))}
             </div>
 
-            <div ref={blockRef} className="flex-1 flex flex-col justify-start pt-4 sm:pt-10 pb-8 w-full max-w-[42rem] mx-auto">
-              <ContentBlockView block={currentBlock} isOrientation={lesson.lesson_type === 'orientation'} />
+            <div ref={blockRef} className={`flex-1 flex flex-col justify-start pt-4 sm:pt-10 pb-8 w-full mx-auto ${isWideBlock(currentBlock) ? 'max-w-3xl' : 'max-w-[42rem]'}`}>
+              <ContentBlockView key={blockIndex} block={currentBlock} isOrientation={lesson.lesson_type === 'orientation'} />
             </div>
 
             <div className="flex items-center justify-between gap-3 mt-8 pt-4 border-t border-brand-muted/10">
@@ -790,6 +791,12 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
         <div className="rounded-xl bg-brand-surface p-5 sm:p-6">
           <p className="text-brand-primary font-medium mb-1 text-lg">{block.term}</p>
           <p className="text-brand-text text-base sm:text-lg leading-[1.7]">{renderInline(block.definition)}</p>
+          {block.example && (
+            <div className="mt-4 border-t border-brand-muted/15 pt-3">
+              <p className="font-display italic text-sm text-brand-primary">In practice</p>
+              <p className="text-brand-text/90 text-base leading-[1.65]">{renderInline(block.example)}</p>
+            </div>
+          )}
         </div>
       )
     case 'title':
@@ -835,7 +842,7 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
         </div>
       )
     default:
-      return null
+      return isRichBlock(block) ? <RichBlockView block={block} /> : null
   }
 }
 

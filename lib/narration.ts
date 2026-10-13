@@ -7,9 +7,38 @@ export type ContentBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'list'; style: 'bullet' | 'numbered'; items: string[] }
   | { type: 'callout'; variant: 'info' | 'warning' | 'tip'; text: string }
-  | { type: 'key_term'; term: string; definition: string }
+  // `example` adds an "In practice" line: a real incident or workplace case.
+  | { type: 'key_term'; term: string; definition: string; example?: string }
   | { type: 'group'; heading?: string; blocks?: ContentBlock[]; items?: { label: string; value: string }[] }
   | { type: 'title'; text: string; overview: string; examContext: string }
+  // Several terms on one slide, each with a one-line definition, optionally
+  // beside a diagram. Replaces runs of single key-term slides.
+  | { type: 'term_set'; heading: string; intro?: string; terms: { term: string; short: string; mark?: string }[]; diagram?: Diagram }
+  // A side-by-side table. `values` lines up with `columns`; `cue` is the
+  // "exam cue" row - the words in a question that point to each column.
+  | { type: 'compare'; heading: string; intro?: string; columns: string[]; rows: { label: string; values: string[] }[]; cue?: string[] }
+  // An ungraded practice question: pick an answer, then see why.
+  | { type: 'scenario'; prompt: string; choices: { id: string; text: string }[]; answer: string; why: string; trap?: string }
+  | { type: 'diagram'; heading: string; caption?: string; diagram: Diagram }
+  // Worked calculation with the learner's own numbers.
+  | { type: 'calc'; heading: string; kind: 'ale'; intro?: string; defaults?: { assetValue: number; exposureFactor: number; aro: number } }
+
+export type DiagramItem = { label: string; note?: string; muted?: boolean }
+
+// Diagrams are drawn by the lesson player from this data (no image files).
+export type Diagram =
+  | { kind: 'triad'; points: [DiagramItem, DiagramItem, DiagramItem]; center?: string }
+  // Broadest tier first.
+  | { kind: 'pyramid'; tiers: DiagramItem[]; top?: string; bottom?: string }
+  // Left to right (stacks vertically on phones).
+  | { kind: 'flow'; steps: DiagramItem[] }
+  // A repeating loop.
+  | { kind: 'cycle'; steps: DiagramItem[]; center?: string }
+  // Ranked, first = highest.
+  | { kind: 'ladder'; rungs: DiagramItem[]; top?: string; bottom?: string }
+  // An event on a time axis: one span before it, consecutive spans after
+  // it, and an optional bracket over all the after-spans.
+  | { kind: 'timeline'; event: string; before?: DiagramItem; after: DiagramItem[]; total?: DiagramItem }
 
 // ---------------------------------------------------------------------------
 // Voices
@@ -112,7 +141,41 @@ function rawSpeechText(block: ContentBlock): string {
     case 'list':
       return joinParts((block.items ?? []).map(stripBold))
     case 'key_term':
-      return `${block.term}: ${stripBold(block.definition)}`
+      return joinParts([
+        `${block.term}: ${stripBold(block.definition)}`,
+        block.example ? `In practice: ${stripBold(block.example)}` : '',
+      ])
+    case 'term_set':
+      return joinParts([
+        block.heading,
+        stripBold(block.intro),
+        ...(block.terms ?? []).map((t) => `${t.term}: ${stripBold(t.short)}`),
+      ])
+    case 'compare':
+      return joinParts([
+        block.heading,
+        stripBold(block.intro),
+        ...(block.rows ?? []).map((r) =>
+          joinParts([r.label, ...r.values.map((v, i) => `${block.columns[i] ?? ''}: ${stripBold(v)}`)]),
+        ),
+        block.cue ? joinParts(['Exam cues', ...block.cue.map((c, i) => `${block.columns[i] ?? ''}: ${stripBold(c)}`)]) : '',
+      ])
+    case 'scenario':
+      // The answer is never read out - the learner should choose first.
+      return joinParts([
+        'Practice question',
+        stripBold(block.prompt),
+        `Is it ${(block.choices ?? []).map((c) => stripBold(c.text)).join(', or ')}?`,
+      ])
+    case 'diagram':
+      return joinParts([block.heading, stripBold(block.caption), diagramSpeech(block.diagram)])
+    case 'calc':
+      return joinParts([
+        block.heading,
+        stripBold(block.intro),
+        'Single loss expectancy equals asset value times exposure factor',
+        'Annualized loss expectancy equals single loss expectancy times annualized rate of occurrence',
+      ])
     case 'group':
       return joinParts([
         block.heading,
@@ -125,6 +188,26 @@ function rawSpeechText(block: ContentBlock): string {
         stripBold(block.overview),
         block.examContext ? `How this shows up on the exam: ${stripBold(block.examContext)}` : '',
       ])
+    default:
+      return ''
+  }
+}
+
+function diagramSpeech(d: Diagram | undefined): string {
+  if (!d) return ''
+  const item = (i: DiagramItem) => (i.note ? `${i.label}: ${stripBold(i.note)}` : i.label)
+  switch (d.kind) {
+    case 'triad':
+      return joinParts(d.points.map(item))
+    case 'pyramid':
+      return joinParts(d.tiers.map(item))
+    case 'flow':
+    case 'cycle':
+      return joinParts(d.steps.map(item))
+    case 'ladder':
+      return joinParts(d.rungs.map(item))
+    case 'timeline':
+      return joinParts([d.before ? item(d.before) : '', d.event, ...d.after.map(item), d.total ? item(d.total) : ''])
     default:
       return ''
   }
