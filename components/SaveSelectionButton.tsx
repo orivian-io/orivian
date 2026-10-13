@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { NotesIcon } from '@/components/Icons'
 
 // Shows a small "Save to notes" button next to text the learner selects
 // inside the referenced element. Works with mouse and touch selection.
@@ -66,7 +67,8 @@ export default function SaveSelectionButton({
       style={{ top: pos.top, left: pos.left }}
       className="fixed z-[62] -translate-x-1/2 rounded-full border border-brand-primary/60 bg-brand-surface-raised px-3.5 py-1.5 text-sm font-medium text-brand-primary shadow-lg shadow-black/40 transition hover:bg-brand-primary hover:text-black"
     >
-      📝 Save to notes
+      <NotesIcon className="inline h-4 w-4 -mt-0.5 mr-1.5" />
+      Save to notes
     </button>
   )
 }

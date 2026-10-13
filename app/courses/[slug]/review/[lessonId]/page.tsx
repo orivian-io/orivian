@@ -117,7 +117,7 @@ export default function ExamReviewPage() {
         <div className="rounded-xl bg-brand-surface p-6 text-sm text-brand-secondary">
           You haven&apos;t taken this lesson&apos;s mini-exam yet.{' '}
           <Link href={`/learn/${slug}/${lessonId}`} className="text-brand-primary hover:underline">
-            Start the lesson →
+            Start the lesson
           </Link>
         </div>
       ) : (

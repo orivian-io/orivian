@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { CheckIcon, FlagIcon } from '@/components/Icons'
 
 export type ReportTarget = {
   context: 'lesson' | 'mini_exam' | 'checkpoint' | 'final_exam' | 'results' | 'course'
@@ -107,7 +108,7 @@ export default function ReportProblem({
         onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 text-sm text-brand-secondary transition hover:text-brand-primary"
       >
-        <span aria-hidden="true">⚑</span>
+        <FlagIcon className="h-3.5 w-3.5" />
         {label}
       </button>
     )
@@ -129,9 +130,7 @@ export default function ReportProblem({
           >
             {state === 'sent' ? (
               <div className="py-6 text-center">
-                <p className="text-3xl" aria-hidden="true">
-                  ✓
-                </p>
+                <CheckIcon className="mx-auto h-8 w-8 text-brand-success" />
                 <h2 className="mt-2 text-xl font-medium">Report sent</h2>
                 <p className="mt-1 text-sm text-brand-secondary">Thanks. The Orivian team has it and will take a look.</p>
               </div>

@@ -8,6 +8,8 @@ import ResetProgressDialog from '@/components/ResetProgressDialog'
 import RemoveCourseDialog from '@/components/RemoveCourseDialog'
 import ReportProblem from '@/components/ReportProblem'
 import { DomainIcon } from '@/lib/domain-icons'
+import { SummitIcon } from '@/components/Icons'
+import TrailMap, { type TrailStep } from '@/components/TrailMap'
 import { renderInline } from '@/lib/inline-format'
 import type { User } from '@supabase/supabase-js'
 
@@ -90,6 +92,18 @@ type Step = {
   // Exam taken but not passed yet (best score, if any).
   failedScore: number | null
   minutes: number
+}
+
+function toTrailStep(st: Step): TrailStep {
+  return {
+    key: st.key,
+    title: st.kind === 'recap' ? `Recap: ${st.title}` : st.title,
+    href: st.href,
+    kind: st.kind,
+    done: st.done,
+    started: st.started,
+    failed: st.failedScore !== null,
+  }
 }
 
 export default function CoursePage() {
@@ -470,47 +484,28 @@ export default function CoursePage() {
       )}
 
       {user && enrolled && (
+        <>
+        <div className="mb-6">
+          <TrailMap
+            stages={[
+              ...sections
+                .filter((sec) => stepsBySection.has(sec.id))
+                .map((sec) => ({ id: sec.id, title: sec.title, steps: (stepsBySection.get(sec.id) || []).map(toTrailStep) })),
+              ...(unsectioned.length > 0
+                ? [{ id: 'more', title: 'More lessons', steps: unsectioned.map((l) => toTrailStep(lessonStep(l))) }]
+                : []),
+            ]}
+            nextKey={nextStep?.key ?? null}
+          />
+        </div>
         <div className="flex items-center gap-3 mb-6">
-          <div
-            className="flex-1 flex gap-1"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={stepsPercent}
-            aria-label="Course progress"
-          >
-            {sections.map((s) => {
-              const st = stepsBySection.get(s.id)
-              if (!st) return null
-              const done = st.filter((x) => x.done).length
-              return (
-                <div
-                  key={s.id}
-                  className="h-1.5 rounded-full bg-brand-muted/20 overflow-hidden"
-                  style={{ flexGrow: st.length, flexBasis: 0 }}
-                  title={`${s.title}: ${done} of ${st.length} done`}
-                >
-                  <div
-                    className="h-full rounded-full bg-brand-success transition-[width] duration-500"
-                    style={{ width: `${(done / st.length) * 100}%` }}
-                  />
-                </div>
-              )
-            })}
-            {unsectioned.length > 0 && (() => {
-              const done = unsectioned.filter((l) => completedIds.has(l.id)).length
-              return (
-                <div
-                  className="h-1.5 rounded-full bg-brand-muted/20 overflow-hidden"
-                  style={{ flexGrow: unsectioned.length, flexBasis: 0 }}
-                  title={`More lessons: ${done} of ${unsectioned.length} done`}
-                >
-                  <div className="h-full rounded-full bg-brand-success" style={{ width: `${(done / unsectioned.length) * 100}%` }} />
-                </div>
-              )
-            })()}
-          </div>
-          <span className="text-sm text-brand-secondary whitespace-nowrap">{stepsPercent}% complete</span>
+          <p className="mr-auto text-sm text-brand-secondary tabular-nums">
+            <span className="font-display text-2xl text-brand-text">{stepsPercent}%</span>
+            <span className="ml-2">
+              of the trail covered, {allSteps.filter((x) => x.done).length} of {allSteps.length} waypoints
+            </span>
+          </p>
+
           <button
             type="button"
             onClick={() => setResetTarget({ scope: 'course', id: course.id, title: course.title })}
@@ -528,6 +523,7 @@ export default function CoursePage() {
             Remove
           </button>
         </div>
+        </>
       )}
       {user && enrolled && (
         nextStep ? (
@@ -541,8 +537,8 @@ export default function CoursePage() {
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-xs uppercase tracking-wide text-brand-primary mb-0.5">
-                Up next{nextSection ? ` · ${nextSection.title}` : ''}
+              <p className="font-display italic text-sm text-brand-primary mb-0.5">
+                Next waypoint{nextSection ? <span className="text-brand-secondary not-italic font-sans"> in {nextSection.title}</span> : null}
               </p>
               <p className="font-medium text-lg leading-snug">
                 {nextStep.kind === 'recap' ? 'Domain recap: ' : ''}
@@ -559,12 +555,12 @@ export default function CoursePage() {
             </div>
             <span className="self-start sm:self-center shrink-0 bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium group-hover:bg-brand-primary-light transition">
               {nextStep.failedScore !== null
-                ? 'Try again →'
+                ? 'Try again'
                 : nextStep.started
                   ? 'Continue →'
                   : nextStep.kind === 'checkpoint'
-                    ? 'Start exam →'
-                    : 'Start →'}
+                    ? 'Start exam'
+                    : 'Start'}
             </span>
           </Link>
         ) : allSteps.length > 0 ? (
@@ -733,7 +729,7 @@ export default function CoursePage() {
               </button>
 
               {isOpen && (
-              <div className="space-y-1">
+              <div className="sm:ml-[3.75rem] border-t border-brand-muted/15 divide-y divide-brand-muted/15">
                 {hiddenInSection > 0 && (
                   <p className="text-xs text-brand-muted pb-1">
                     {hiddenInSection} completed item{hiddenInSection === 1 ? '' : 's'} hidden
@@ -749,21 +745,21 @@ export default function CoursePage() {
                   const questionCount = questionCounts.get(lesson.id) || 0
                   const minutes = lessonMinutes(lesson, questionCount)
 
-                  let statusLabel = 'Start lesson →'
+                  let statusLabel = 'Start lesson'
                   let statusClass = 'text-sm text-brand-secondary'
                   const isFailed = !isComplete && typeof bestScore === 'number'
                   if (isNext) {
-                    statusLabel = isFailed ? 'Try again →' : isStarted ? 'Continue →' : 'Start →'
+                    statusLabel = isFailed ? 'Try again' : isStarted ? 'Continue' : 'Start'
                     statusClass = 'text-sm text-brand-primary font-medium'
                   } else if (isFailed) {
-                    statusLabel = 'Try again →'
+                    statusLabel = 'Try again'
                     statusClass = 'text-sm text-brand-alert'
                   }
                   if (isComplete) {
                     statusLabel = '✓ Completed'
                     statusClass = 'text-sm text-brand-success'
                   } else if (isStarted && !isNext && !isFailed) {
-                    statusLabel = 'Continue lesson →'
+                    statusLabel = 'Continue lesson'
                     statusClass = 'text-sm text-brand-primary/80'
                   }
 
@@ -771,7 +767,7 @@ export default function CoursePage() {
                     <>
                       <div className="min-w-0">
                         {isNext && (
-                          <span className="inline-block mb-1 rounded-full bg-brand-primary text-black text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
+                          <span className="font-display italic text-sm inline-block mb-1 text-brand-primary">
                             Up next
                           </span>
                         )}
@@ -805,12 +801,12 @@ export default function CoursePage() {
                     <div key={lesson.id} className="group relative">
                       <Link
                         href={`/learn/${slug}/${lesson.id}`}
-                        className={`rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-start justify-between gap-4 ${hasAttempts ? 'pb-10' : ''} ${isNext ? 'ring-1 ring-brand-primary/70' : ''}`}
+                        className={`-mx-3 px-3 py-4 rounded-md transition hover:bg-brand-surface/70 flex items-start justify-between gap-4 ${hasAttempts ? 'pb-11' : ''} ${isNext ? 'bg-brand-primary/[0.06] shadow-[inset_2px_0_0_var(--color-brand-primary)]' : ''}`}
                       >
                         {inner}
                       </Link>
                       {(isComplete || isStarted || hasAttempts) && (
-                        <div className="absolute bottom-3 right-4 flex items-center gap-4">
+                        <div className="absolute bottom-3 right-0 flex items-center gap-4">
                           {(isComplete || isStarted) && (
                             <button
                               type="button"
@@ -827,7 +823,7 @@ export default function CoursePage() {
                               className="text-xs text-brand-primary/90 hover:text-brand-primary hover:underline transition"
                               title="See your past mini-exam attempts and the questions you missed"
                             >
-                              Review exam answers →
+                              Review answers
                             </Link>
                           )}
                         </div>
@@ -836,7 +832,7 @@ export default function CoursePage() {
                   ) : (
                     <div
                       key={lesson.id}
-                      className="rounded-xl bg-brand-surface p-4 flex items-start justify-between gap-4"
+                      className="py-4 flex items-start justify-between gap-4"
                     >
                       {inner}
                     </div>
@@ -851,18 +847,18 @@ export default function CoursePage() {
                   return enrolled ? (
                     <Link
                       href={`/learn/${slug}/${recap.id}`}
-                      className={`rounded-xl border border-dashed hover:border-brand-primary/50 hover:bg-brand-surface transition p-4 flex items-start justify-between gap-4 ${
-                        isNext ? 'border-brand-primary/70' : 'border-brand-muted/40'
+                      className={`-mx-3 px-3 py-4 rounded-md transition hover:bg-brand-surface/70 flex items-start justify-between gap-4 ${
+                        isNext ? 'bg-brand-primary/[0.06] shadow-[inset_2px_0_0_var(--color-brand-primary)]' : ''
                       }`}
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-baseline gap-x-2">
                           {isNext && (
-                            <span className="rounded-full bg-brand-primary text-black text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
+                            <span className="font-display italic text-sm text-brand-primary">
                               Up next
                             </span>
                           )}
-                          <span className="text-xs uppercase tracking-wide text-brand-primary/80">Domain Recap</span>
+                          <span className="font-display italic text-sm text-brand-primary/80">Domain recap</span>
                         </div>
                         <h3 className="font-medium mt-0.5">{recap.title}</h3>
                         {recap.summary && (
@@ -870,13 +866,13 @@ export default function CoursePage() {
                         )}
                       </div>
                       <span className={`${isReviewed ? 'text-brand-success' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
-                        {isReviewed ? '✓ Reviewed' : 'Review →'}
+                        {isReviewed ? '✓ Reviewed' : 'Review'}
                       </span>
                     </Link>
                   ) : (
-                    <div className="rounded-xl border border-dashed border-brand-muted/40 p-4 flex items-start justify-between gap-4">
+                    <div className="py-4 flex items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <span className="text-xs uppercase tracking-wide text-brand-primary/80">Domain Recap</span>
+                        <span className="font-display italic text-sm text-brand-primary/80">Domain recap</span>
                         <h3 className="font-medium mt-0.5">{recap.title}</h3>
                       </div>
                     </div>
@@ -892,18 +888,21 @@ export default function CoursePage() {
                   return enrolled ? (
                     <Link
                       href={`/learn/${slug}/checkpoint/${section.id}`}
-                      className={`rounded-xl bg-brand-surface-raised hover:bg-brand-surface transition p-4 flex items-start justify-between gap-4 ${
-                        isNext ? 'ring-1 ring-brand-primary/70' : ''
+                      className={`-mx-3 px-3 py-4 rounded-md transition hover:bg-brand-surface/70 flex items-start justify-between gap-4 ${
+                        isNext ? 'bg-brand-primary/[0.06] shadow-[inset_2px_0_0_var(--color-brand-primary)]' : ''
                       }`}
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-baseline gap-x-2">
                           {isNext && (
-                            <span className="rounded-full bg-brand-primary text-black text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5">
+                            <span className="font-display italic text-sm text-brand-primary">
                               Up next
                             </span>
                           )}
-                          <span className="text-xs uppercase tracking-wide text-brand-primary/80">Domain Checkpoint</span>
+                          <span className="flex items-center gap-1.5 font-display italic text-sm text-brand-primary/80">
+                            <SummitIcon className="h-3.5 w-3.5" />
+                            Domain checkpoint
+                          </span>
                         </div>
                         <h3 className="font-medium mt-0.5">{section.title}: full-domain exam</h3>
                         <p className="text-sm text-brand-text/80 mt-1">{qCount} questions · 80% to pass</p>
@@ -912,13 +911,13 @@ export default function CoursePage() {
                         )}
                       </div>
                       <span className={`${passed ? 'text-brand-success' : typeof best === 'number' ? 'text-brand-alert' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
-                        {passed ? '✓ Passed' : typeof best === 'number' ? 'Try again →' : 'Start →'}
+                        {passed ? '✓ Summit reached' : typeof best === 'number' ? 'Try again' : 'Start'}
                       </span>
                     </Link>
                   ) : (
-                    <div className="rounded-xl bg-brand-surface-raised p-4 flex items-start justify-between gap-4">
+                    <div className="py-4 flex items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <span className="text-xs uppercase tracking-wide text-brand-primary/80">Domain Checkpoint</span>
+                        <span className="font-display italic text-sm text-brand-primary/80">Domain checkpoint</span>
                         <h3 className="font-medium mt-0.5">{section.title}: full-domain exam</h3>
                       </div>
                     </div>
@@ -933,7 +932,7 @@ export default function CoursePage() {
         {unsectioned.length > 0 && (
           <div>
             <h2 className="text-xl font-medium mb-4">More Lessons</h2>
-            <div className="space-y-1">
+            <div className="border-t border-brand-muted/15 divide-y divide-brand-muted/15">
               {unsectioned.map((lesson) => {
                 const isComplete = completedIds.has(lesson.id)
                 if (hideCompleted && isComplete) return null
@@ -941,17 +940,17 @@ export default function CoursePage() {
                   <Link
                     key={lesson.id}
                     href={`/learn/${slug}/${lesson.id}`}
-                    className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-center justify-between"
+                    className="-mx-3 px-3 py-4 rounded-md transition hover:bg-brand-surface/70 flex items-center justify-between"
                   >
                     <h3 className="font-medium">{lesson.title}</h3>
                     <span className={isComplete ? 'text-sm text-brand-success' : 'text-sm text-brand-secondary'}>
-                      {isComplete ? '✓ Completed' : 'Start lesson →'}
+                      {isComplete ? '✓ Completed' : 'Start lesson'}
                     </span>
                   </Link>
                 ) : (
                   <div
                     key={lesson.id}
-                    className="rounded-xl bg-brand-surface p-4 flex items-center justify-between"
+                    className="py-4 flex items-center justify-between"
                   >
                     <h3 className="font-medium">{lesson.title}</h3>
                   </div>
@@ -1001,7 +1000,7 @@ export default function CoursePage() {
                     )}
                   </div>
                   <span className={`${best?.passed ? 'text-brand-success' : 'text-brand-secondary'} text-sm shrink-0 whitespace-nowrap self-start`}>
-                    {best ? 'Retake →' : 'Start →'}
+                    {best ? 'Retake' : 'Start'}
                   </span>
                 </Link>
               ) : (

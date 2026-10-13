@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { CloseIcon, CompassMoment, RetryIcon, TimerIcon } from '@/components/Icons'
 import ReportProblem from '@/components/ReportProblem'
 import { supabase } from '@/lib/supabase'
 import { notifyProgress } from '@/lib/stats'
@@ -319,9 +320,9 @@ export default function FinalExamPage() {
             href={`/courses/${exam.course?.slug || courseSlug}`}
             className="text-sm text-brand-secondary hover:text-brand-text transition"
           >
-            ✕ Exit
+            <CloseIcon className="inline h-3.5 w-3.5 -mt-0.5 mr-1" />Exit
           </Link>
-          <span className="flex items-center gap-2 text-xs text-brand-secondary uppercase tracking-wide">
+          <span className="font-display italic text-sm flex items-center gap-2 text-brand-secondary">
             <DomainIcon slug="final-exams" className="w-4 h-4 text-brand-primary/70" />
             Final Exam
           </span>
@@ -329,7 +330,7 @@ export default function FinalExamPage() {
 
         {phase === 'intro' && (
           <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-xs font-medium uppercase tracking-wide text-brand-primary mb-3">Final Exam</p>
+            <p className="font-display italic text-sm text-brand-primary mb-3">Final Exam</p>
             <h1 className="text-3xl sm:text-4xl font-display font-medium mb-4">{exam.title}</h1>
             <p className="text-brand-secondary text-lg max-w-xl mx-auto mb-3">
               {exam.question_count} questions, weighted across all domains the same way the real exam is.
@@ -374,7 +375,7 @@ export default function FinalExamPage() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h1 className="text-xl font-medium">{exam.title}</h1>
                 <span className={`text-sm font-medium tabular-nums ${overTimeLimit ? 'text-amber-500' : 'text-brand-text'}`}>
-                  ⏱ {formatDuration(elapsedSeconds)} / {formatDuration(timeLimitSeconds)}
+                  <TimerIcon className="inline h-3.5 w-3.5 -mt-0.5" /> {formatDuration(elapsedSeconds)} / {formatDuration(timeLimitSeconds)}
                   {overTimeLimit ? ' (over limit)' : ''}
                 </span>
               </div>
@@ -437,7 +438,13 @@ export default function FinalExamPage() {
         {phase === 'results' && result && (
           <div className="flex-1 flex flex-col py-4">
             <div className="text-center mb-6">
-              <p className="text-5xl mb-2">{result.passed ? '✅' : '↻'}</p>
+              <div className="mb-3 flex justify-center">
+                {result.passed ? (
+                  <CompassMoment className="h-16 w-16 text-brand-success" />
+                ) : (
+                  <RetryIcon className="h-12 w-12 text-brand-alert" />
+                )}
+              </div>
               <h1 className="text-2xl font-medium mb-1">
                 {result.passed ? 'Passing-equivalent score!' : 'Below the passing-equivalent line'}
               </h1>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Avatar from '@/components/Avatar'
 import { AVATARS, isAvatarUnlocked, type AvatarDef } from '@/lib/avatars'
+import { CloseIcon, LockIcon } from '@/components/Icons'
 
 // Grid of Orivian's avatars: everyday ones, then ones earned by leveling up.
 export default function AvatarPicker({
@@ -80,9 +81,7 @@ export default function AvatarPicker({
           <Avatar avatarId={a.id} size={48} />
         </span>
         {locked && (
-          <span className="absolute top-[22px] text-sm" aria-hidden="true">
-            🔒
-          </span>
+          <LockIcon className="absolute top-[22px] h-4 w-4 text-brand-secondary" />
         )}
         <span className={`text-[11px] leading-tight text-center ${locked ? 'text-brand-muted' : 'text-brand-secondary'}`}>
           {locked ? lockLabel : a.name}
@@ -103,12 +102,12 @@ export default function AvatarPicker({
         <div className="flex items-center justify-between border-b border-brand-muted/15 px-6 py-4">
           <h2 className="text-xl font-medium">Choose your avatar</h2>
           <button type="button" onClick={onClose} className="text-brand-secondary hover:text-brand-text" aria-label="Close">
-            ✕
+            <CloseIcon className="h-5 w-5" />
           </button>
         </div>
 
         <div className="overflow-y-auto px-6 py-5">
-          <p className="mb-2 text-xs uppercase tracking-wide text-brand-secondary">Everyday</p>
+          <p className="font-display italic text-sm mb-2 text-brand-secondary">Everyday</p>
           <div className="mb-6 grid grid-cols-4 gap-2 sm:grid-cols-6">
             <button
               type="button"
@@ -124,7 +123,7 @@ export default function AvatarPicker({
           </div>
 
           <div className="mb-2 flex items-baseline justify-between gap-3">
-            <p className="text-xs uppercase tracking-wide text-brand-secondary">Earned by leveling up</p>
+            <p className="font-display italic text-sm text-brand-secondary">Earned by leveling up</p>
             <p className="text-xs text-brand-muted tabular-nums">
               {earnedCount} of {earned.length} unlocked
             </p>
@@ -132,7 +131,7 @@ export default function AvatarPicker({
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">{earned.map(tile)}</div>
 
           <div className="mb-2 mt-6 flex items-baseline justify-between gap-3">
-            <p className="text-xs uppercase tracking-wide text-brand-secondary">Earned by inviting friends</p>
+            <p className="font-display italic text-sm text-brand-secondary">Earned by inviting friends</p>
             <p className="text-xs text-brand-muted tabular-nums">
               {invitedCount} of {invited.length} unlocked
             </p>

@@ -7,7 +7,8 @@ import LevelBadge from '@/components/LevelBadge'
 import { levelFor, type LevelInfo } from '@/lib/levels'
 import Avatar from '@/components/Avatar'
 import { avatarsUnlockedBetween, type AvatarDef } from '@/lib/avatars'
-import { fetchMyStats, nextTier, syncTimezone, tierFor, todayIn, type MyStats } from '@/lib/stats'
+import { fetchMyStats, nextTier, syncTimezone, todayIn, type MyStats } from '@/lib/stats'
+import { CloseIcon, FlameIcon } from '@/components/Icons'
 
 const LEVEL_KEY = 'orivian.level.'
 
@@ -88,7 +89,6 @@ export default function NavStreak({ userId }: { userId: string }) {
   if (!stats) return null
 
   const { current, longest, studied_today } = stats.streak
-  const tier = tierFor(current)
   const next = nextTier(current)
 
   const toggle = () => {
@@ -109,9 +109,7 @@ export default function NavStreak({ userId }: { userId: string }) {
             : 'border-brand-muted/30 text-brand-secondary hover:text-brand-text'
         }`}
       >
-        <span aria-hidden="true" className={studied_today ? '' : 'grayscale opacity-60'}>
-          🔥
-        </span>
+        <FlameIcon className={`h-4 w-4 ${studied_today ? '' : 'opacity-60'}`} />
         {current}
       </button>
 
@@ -122,8 +120,9 @@ export default function NavStreak({ userId }: { userId: string }) {
           </div>
           <div className="mb-4 grid grid-cols-2 gap-2 text-center">
             <div className="rounded-lg bg-brand-surface p-3">
-              <p className="text-2xl font-medium text-brand-primary tabular-nums">
-                {tier?.emoji ?? '🔥'} {current}
+              <p className="font-display text-3xl text-brand-primary tabular-nums">
+                <FlameIcon className="inline h-5 w-5 -mt-1 mr-1" />
+                {current}
               </p>
               <p className="text-xs text-brand-secondary">Current streak</p>
             </div>
@@ -150,7 +149,7 @@ export default function NavStreak({ userId }: { userId: string }) {
             onClick={() => setOpen(false)}
             className="mt-4 block text-center text-sm text-brand-primary hover:underline"
           >
-            All my stats →
+            All my stats
           </Link>
         </div>
       )}
@@ -166,10 +165,10 @@ export default function NavStreak({ userId }: { userId: string }) {
             className="absolute right-3 top-2 text-brand-muted hover:text-brand-text"
             aria-label="Dismiss"
           >
-            ✕
+            <CloseIcon className="h-4 w-4" />
           </button>
           <p className="text-3xl mb-1" aria-hidden="true">
-            🎉 {levelUp.info.emoji}
+            {levelUp.info.emoji}
           </p>
           <p className="font-medium text-brand-primary">Level up!</p>
           <p className="text-sm text-brand-text">
@@ -177,7 +176,7 @@ export default function NavStreak({ userId }: { userId: string }) {
           </p>
           {levelUp.unlocked.length > 0 && (
             <div className="mt-3 border-t border-brand-muted/20 pt-3">
-              <p className="text-xs uppercase tracking-wide text-brand-secondary mb-2">
+              <p className="font-display italic text-sm text-brand-secondary mb-2">
                 New avatar{levelUp.unlocked.length === 1 ? '' : 's'} unlocked
               </p>
               <div className="flex flex-wrap justify-center gap-3 mb-2">
@@ -189,7 +188,7 @@ export default function NavStreak({ userId }: { userId: string }) {
                 ))}
               </div>
               <Link href="/profile?avatars=1" onClick={() => setLevelUp(null)} className="text-sm text-brand-primary hover:underline">
-                Choose your avatar →
+                Choose your avatar
               </Link>
             </div>
           )}

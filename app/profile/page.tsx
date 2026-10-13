@@ -18,6 +18,7 @@ import { fetchFriendsSummary, type FriendsSummary } from '@/lib/friends'
 import { aliasSaveError, generateAlias, validateAlias } from '@/lib/alias'
 import { loadHome, type HomeCourse } from '@/lib/home'
 import { placeName } from '@/lib/live'
+import { PencilIcon, ShuffleIcon } from '@/components/Icons'
 
 type ProfileFields = {
   job_title: string
@@ -250,7 +251,7 @@ export default function ProfilePage() {
         >
           <Avatar avatarId={avatar} name={fullName} size={88} />
           <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border border-brand-muted/40 bg-brand-surface-raised text-xs text-brand-secondary group-hover:text-brand-primary">
-            ✎
+            <PencilIcon className="h-3.5 w-3.5" />
           </span>
         </button>
 
@@ -397,7 +398,8 @@ export default function ProfilePage() {
                   className="shrink-0 rounded-md border border-brand-muted/40 px-3 text-sm text-brand-secondary transition hover:text-brand-primary"
                   title="Suggest another alias"
                 >
-                  🎲 Shuffle
+                  <ShuffleIcon className="inline h-4 w-4 -mt-0.5 mr-1" />
+                  Shuffle
                 </button>
               </div>
               {aliasError && <p className="text-xs text-red-400">{aliasError}</p>}

@@ -23,6 +23,7 @@ import {
   type FriendsData,
 } from '@/lib/friends'
 import { getAvatar } from '@/lib/avatars'
+import { FlameIcon } from '@/components/Icons'
 
 function eventText(e: FriendEvent) {
   if (e.kind === 'referral_bonus') {
@@ -293,7 +294,7 @@ function FriendCard({ f, onRemove }: { f: Friend; onRemove: () => void }) {
       <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
         <div className="rounded-lg bg-brand-bg/50 py-2">
           <dt className="text-[11px] text-brand-secondary">Streak</dt>
-          <dd className="tabular-nums">{f.streak > 0 ? `🔥 ${f.streak}` : '0'}</dd>
+          <dd className="tabular-nums">{f.streak > 0 ? <><FlameIcon className="inline h-3.5 w-3.5 -mt-0.5 mr-1 text-brand-primary" />{f.streak}</> : '0'}</dd>
         </div>
         <div className="rounded-lg bg-brand-bg/50 py-2">
           <dt className="text-[11px] text-brand-secondary">Lessons this week</dt>

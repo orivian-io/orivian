@@ -73,7 +73,7 @@ export default function VoiceSettings({ onBeforePreview }: { onBeforePreview?: (
           aria-label="Narration settings"
           className="absolute left-0 bottom-full mb-2 z-20 w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-brand-muted/20 bg-brand-surface-raised p-4 shadow-xl shadow-black/40"
         >
-          <p className="text-xs uppercase tracking-wide text-brand-secondary mb-2">Narrator</p>
+          <p className="font-display italic text-sm text-brand-secondary mb-2">Narrator</p>
           <div className="space-y-1.5" role="radiogroup" aria-label="Narrator voice">
             {NARRATION_VOICES.map((v) => {
               const selected = prefs.voice === v.id
@@ -110,7 +110,7 @@ export default function VoiceSettings({ onBeforePreview }: { onBeforePreview?: (
             })}
           </div>
 
-          <p className="mt-4 text-xs uppercase tracking-wide text-brand-secondary mb-1.5">Speed</p>
+          <p className="font-display italic text-sm mt-4 text-brand-secondary mb-1.5">Speed</p>
           <div className="grid grid-cols-5 gap-1">
             {RATE_OPTIONS.map((r) => (
               <button

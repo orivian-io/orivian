@@ -215,7 +215,7 @@ export default function NotesPage() {
         <div className="rounded-xl border border-dashed border-brand-muted/30 p-10 text-center">
           <p className="text-brand-text mb-2">No notes yet</p>
           <p className="text-sm text-brand-secondary max-w-md mx-auto leading-relaxed">
-            Open a lesson and tap <span className="text-brand-primary">📝 Notes</span>, or select any text in a lesson and
+            Open a lesson and tap <span className="text-brand-primary">Notes</span>, or select any text in a lesson and
             choose <span className="text-brand-primary">Save to notes</span>. You can also add a general note here.
           </p>
         </div>
@@ -234,7 +234,7 @@ export default function NotesPage() {
                         href={`/learn/${course.slug}/${lessonKey}`}
                         className="mb-3 inline-flex items-center gap-2 text-sm text-brand-secondary hover:text-brand-primary transition"
                       >
-                        {lesson.title} <span aria-hidden="true">→</span>
+                        {lesson.title}
                       </Link>
                     ) : (
                       courseKey !== GENERAL && <p className="mb-3 text-sm text-brand-secondary">Course notes</p>

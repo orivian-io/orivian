@@ -5,10 +5,13 @@ import Navbar from "@/components/Navbar";
 import PageViewTracker from "@/components/PageViewTracker";
 import { Analytics } from "@vercel/analytics/next";
 
+// Variable Fraunces with its optical-size and "soft" axes, plus a true
+// italic (used for small labels in place of all-caps).
 const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
+  axes: ["SOFT", "opsz"],
 });
 
 const inter = Inter({
@@ -28,8 +31,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${fraunces.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <div className="bg-yellow-500 text-black text-center text-sm font-medium py-2 px-4">
-          🚧 Orivian is under active construction. Content, accounts, and features may change or reset without notice. 🚧
+        <div className="border-b border-brand-primary/20 bg-brand-surface-raised py-2 px-4 text-center text-sm text-brand-secondary">
+          <span className="font-display italic text-brand-primary">Orivian is in beta.</span> Content, accounts and features may
+          change or reset without notice.
         </div>
         <Navbar />
         {children}
@@ -38,4 +42,4 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </body>
     </html>
   );
-}
+}

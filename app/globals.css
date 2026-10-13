@@ -9,8 +9,8 @@
   --color-brand-primary-light: #E4C473;
   /* Completed / passed / correct. Gold stays for in-progress and next steps. */
   --color-brand-success: #8FB39A;
-  /* Attempted but not passed yet - a warm terracotta that sits with the gold. */
-  --color-brand-alert: #D97A5F;
+  /* Attempted but not passed yet - ember, darker and redder than the gold. */
+  --color-brand-alert: #C4603F;
   --color-brand-secondary: #8F949B;
   --color-brand-text: #F2F3F4;
   --color-brand-muted: #626971;
@@ -66,6 +66,12 @@ body:has([data-plain-backdrop])::after {
   }
 }
 
+h1, h2, h3,
+.font-display {
+  /* Fraunces' soft axis rounds the terminals a little - warmer, less bookish. */
+  font-variation-settings: "SOFT" 60;
+}
+
 h1, h2, h3 {
   font-family: var(--font-display), serif;
   letter-spacing: -0.01em;
@@ -78,4 +84,20 @@ h1, h2, h3 {
 ::highlight(tts-word) {
   background-color: rgba(228, 196, 115, 0.9);
   color: #0A0C0F;
+}
+
+/* The one celebratory motion: the compass needle swings and settles when
+   an exam is passed. */
+@keyframes orivian-needle-settle {
+  0% { transform: rotate(-140deg); }
+  45% { transform: rotate(28deg); }
+  65% { transform: rotate(-12deg); }
+  80% { transform: rotate(5deg); }
+  100% { transform: rotate(0deg); }
+}
+.orivian-needle-settle {
+  animation: orivian-needle-settle 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orivian-needle-settle { animation: none; }
 }

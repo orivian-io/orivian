@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { aliasSaveError, generateAlias, validateAlias } from '@/lib/alias'
 import { notifyProfileChanged } from '@/lib/stats'
+import { ShuffleIcon } from '@/components/Icons'
 
 // One-time prompt asking a learner to confirm (or change) the public alias
 // they were given automatically. Shown until they choose one. Not shown in
@@ -96,7 +97,8 @@ export default function AliasPrompt({ userId }: { userId: string }) {
             className="shrink-0 rounded-md border border-brand-muted/40 px-3 text-sm text-brand-secondary hover:border-brand-primary/50 hover:text-brand-primary transition"
             title="Suggest another alias"
           >
-            🎲 Shuffle
+            <ShuffleIcon className="inline h-4 w-4 -mt-0.5 mr-1" />
+            Shuffle
           </button>
         </div>
         <p className="mt-1.5 text-xs text-brand-muted">3-24 characters: letters, numbers, spaces, dots, dashes or underscores.</p>

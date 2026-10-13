@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import NoteCard from '@/components/NoteCard'
 import { createNote, type Note } from '@/lib/notes'
+import { CloseIcon } from '@/components/Icons'
 
 // Slide-over notes panel inside the lesson player. Notes written here are
 // linked to the lesson and its course automatically.
@@ -74,13 +75,13 @@ export default function LessonNotes({
       >
         <div className="flex items-start justify-between gap-3 border-b border-brand-muted/15 px-5 py-4">
           <div className="min-w-0">
-            <p className="text-xs uppercase tracking-wide text-brand-primary">My notes</p>
+            <p className="font-display italic text-sm text-brand-primary">My notes</p>
             <p className="truncate text-sm text-brand-secondary" title={lessonTitle}>
               {lessonTitle}
             </p>
           </div>
           <button type="button" onClick={onClose} className="text-sm text-brand-secondary hover:text-brand-text" aria-label="Close notes">
-            ✕
+            <CloseIcon className="h-4 w-4" />
           </button>
         </div>
 
@@ -135,7 +136,7 @@ export default function LessonNotes({
 
         <div className="border-t border-brand-muted/15 px-5 py-3 text-right">
           <Link href="/notes" className="text-sm text-brand-primary hover:underline">
-            All my notes →
+            All my notes
           </Link>
         </div>
       </aside>

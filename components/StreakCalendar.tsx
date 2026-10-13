@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import type { DayActivity } from '@/lib/stats'
+import { FlameIcon } from '@/components/Icons'
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
@@ -93,7 +94,7 @@ export default function StreakCalendar({ days, today }: { days: DayActivity[]; t
               } ${isToday ? 'ring-1 ring-brand-primary ring-offset-1 ring-offset-brand-surface-raised' : ''}`}
             >
               {Number(d.slice(8))}
-              {lessons > 0 && <span className="absolute -right-0.5 -top-1 text-[9px]" aria-hidden="true">🔥</span>}
+              {lessons > 0 && <FlameIcon className="absolute -right-1 -top-1.5 h-2.5 w-2.5 text-brand-primary" />}
             </span>
           )
         })}

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { CloseIcon, CompassMoment, ElevationIcon, NotesIcon, PauseIcon, RetryIcon, SoundIcon, StopIcon, TimerIcon } from '@/components/Icons'
 import ReportProblem from '@/components/ReportProblem'
 import { supabase } from '@/lib/supabase'
 import { useStudyTimer } from '@/lib/use-study-timer'
@@ -214,6 +215,34 @@ export default function LessonPlayerPage() {
     if (block && getNarrationPrefs().autoPlay) narrateBlock(block)
   }
 
+  // Keyboard: arrow keys move between slides, L listens, N opens notes.
+  // The handler is refreshed every render so it always sees current state.
+  const keyHandler = useRef<(e: KeyboardEvent) => void>(() => {})
+  useEffect(() => {
+    keyHandler.current = (e: KeyboardEvent) => {
+      if (phase !== 'content' || !lesson || e.altKey || e.ctrlKey || e.metaKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      const last = lesson.content_blocks.length - 1
+      if (e.key === 'ArrowRight' && blockIndex < last) {
+        e.preventDefault()
+        goToBlock(blockIndex + 1)
+      } else if (e.key === 'ArrowLeft' && blockIndex > 0) {
+        e.preventDefault()
+        goToBlock(blockIndex - 1)
+      } else if (e.key === 'l' || e.key === 'L') {
+        handleListen()
+      } else if (e.key === 'n' || e.key === 'N') {
+        setNotesOpen((o) => !o)
+      }
+    }
+  })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => keyHandler.current(e)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   // Shared by domain recaps and Domain 0 orientation lessons - both are
   // no-exam lesson types where reaching the end of the content is enough
   // to mark them complete (see app/api/lessons/recap-complete/route.ts).
@@ -379,7 +408,7 @@ export default function LessonPlayerPage() {
             href={`/courses/${lesson.course?.slug || courseSlug}`}
             className="text-sm text-brand-secondary hover:text-brand-text transition"
           >
-            ✕ Exit
+            <CloseIcon className="inline h-3.5 w-3.5 -mt-0.5 mr-1" />Exit
           </Link>
           <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-end">
             <button
@@ -388,7 +417,7 @@ export default function LessonPlayerPage() {
               className="flex items-center gap-1.5 rounded-full border border-brand-muted/30 px-2.5 py-1 text-xs text-brand-secondary transition hover:border-brand-primary/60 hover:text-brand-primary"
               aria-expanded={notesOpen}
             >
-              <span aria-hidden="true">📝</span>
+              <NotesIcon className="h-3.5 w-3.5" />
               Notes{notes && notes.length > 0 ? ` (${notes.length})` : ''}
             </button>
             {todaySeconds !== null && timerPaused && (
@@ -396,7 +425,7 @@ export default function LessonPlayerPage() {
                 className="text-xs text-brand-muted"
                 title="Your study timer pauses when you switch away or haven't interacted for 2 minutes. Scroll, click, or press a key to resume."
               >
-                ⏸ Timer paused
+                <PauseIcon className="inline h-3.5 w-3.5 -mt-0.5" /> Timer paused
               </span>
             )}
             {todaySeconds !== null && (
@@ -404,7 +433,7 @@ export default function LessonPlayerPage() {
                 className="flex items-center gap-1.5 text-xs text-brand-secondary tabular-nums"
                 title={`Time studying ${lesson.course?.title || 'this course'} today`}
               >
-                <span aria-hidden="true">⏱</span>
+                <TimerIcon className="h-3.5 w-3.5" />
                 Today {formatDuration(todaySeconds)}
               </span>
             )}
@@ -413,12 +442,12 @@ export default function LessonPlayerPage() {
                 className="flex items-center gap-1.5 text-xs text-brand-secondary tabular-nums"
                 title={`Total time studying ${lesson.course?.title || 'this course'}`}
               >
-                <span aria-hidden="true">📊</span>
+                <ElevationIcon className="h-3.5 w-3.5" />
                 Total {formatDuration(totalSeconds)}
               </span>
             )}
             {lesson.section?.title && (
-              <span className="flex items-center gap-2 text-xs text-brand-secondary uppercase tracking-wide">
+              <span className="font-display italic text-sm flex items-center gap-2 text-brand-secondary">
                 <DomainIcon slug={lesson.section.slug} className="w-4 h-4 text-brand-primary/70" />
                 {lesson.section.title}
               </span>
@@ -437,7 +466,7 @@ export default function LessonPlayerPage() {
               ))}
             </div>
 
-            <div ref={blockRef} className="flex-1 flex flex-col justify-start pt-4 sm:pt-10 pb-8">
+            <div ref={blockRef} className="flex-1 flex flex-col justify-start pt-4 sm:pt-10 pb-8 max-w-[42rem]">
               <ContentBlockView block={currentBlock} isOrientation={lesson.lesson_type === 'orientation'} />
             </div>
 
@@ -447,7 +476,8 @@ export default function LessonPlayerPage() {
                   onClick={handleListen}
                   className="text-sm text-brand-secondary hover:text-brand-primary transition flex items-center gap-1.5"
                 >
-                  {speaking ? '■ Stop' : '🔊 Listen'}
+                  {speaking ? <StopIcon className="h-4 w-4" /> : <SoundIcon className="h-4 w-4" />}
+                  {speaking ? 'Stop' : 'Listen'}
                 </button>
                 <VoiceSettings />
                 <span className="mx-1 h-4 w-px bg-brand-muted/30" aria-hidden="true" />
@@ -507,6 +537,9 @@ export default function LessonPlayerPage() {
                 )}
               </div>
             </div>
+            <p className="mt-3 hidden text-right text-xs text-brand-muted sm:block" aria-hidden="true">
+              <Kbd>←</Kbd> <Kbd>→</Kbd> move between slides · <Kbd>L</Kbd> listen · <Kbd>N</Kbd> notes
+            </p>
           </>
         )}
 
@@ -589,7 +622,13 @@ export default function LessonPlayerPage() {
         {phase === 'results' && result && (
           <div className="flex-1 flex flex-col py-4">
             <div className="text-center mb-8">
-              <p className="text-5xl mb-2">{result.passed ? '✅' : '↻'}</p>
+              <div className="mb-3 flex justify-center">
+                {result.passed ? (
+                  <CompassMoment className="h-16 w-16 text-brand-success" />
+                ) : (
+                  <RetryIcon className="h-12 w-12 text-brand-alert" />
+                )}
+              </div>
               <h1 className="text-2xl font-medium mb-1">
                 {result.passed ? 'Lesson complete!' : 'Not quite — try again'}
               </h1>
@@ -683,7 +722,7 @@ export default function LessonPlayerPage() {
                 href={`/courses/${lesson.course?.slug || courseSlug}/review/${lesson.id}`}
                 className="text-sm text-brand-secondary hover:text-brand-primary transition px-3 py-2.5"
               >
-                All attempts →
+                All attempts
               </Link>
               {result.passed && nextLesson && (
                 <Link
@@ -726,7 +765,7 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
       )
     case 'paragraph':
       return (
-        <p className={nested ? 'text-base sm:text-lg leading-relaxed text-brand-text' : 'text-lg sm:text-xl leading-relaxed text-brand-text'}>
+        <p className={nested ? 'text-base sm:text-lg leading-[1.7] text-brand-text' : 'text-lg sm:text-xl leading-[1.7] text-brand-text'}>
           {renderInline(block.text)}
         </p>
       )
@@ -750,7 +789,7 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
       return (
         <div className="rounded-xl bg-brand-surface p-5 sm:p-6">
           <p className="text-brand-primary font-medium mb-1 text-lg">{block.term}</p>
-          <p className="text-brand-text text-base sm:text-lg leading-relaxed">{renderInline(block.definition)}</p>
+          <p className="text-brand-text text-base sm:text-lg leading-[1.7]">{renderInline(block.definition)}</p>
         </div>
       )
     case 'title':
@@ -758,14 +797,14 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
         <div className="space-y-6">
           <h1 className="text-3xl sm:text-4xl font-display font-medium">{renderInline(block.text)}</h1>
           {block.overview && (
-            <p className="text-lg sm:text-xl leading-relaxed text-brand-text">{renderInline(block.overview)}</p>
+            <p className="text-lg sm:text-xl leading-[1.7] text-brand-text">{renderInline(block.overview)}</p>
           )}
           {block.examContext && (
             <div className="rounded-xl border border-brand-primary/30 bg-brand-surface p-5 sm:p-6">
-              <p className="text-xs font-medium uppercase tracking-wide text-brand-primary mb-2">
+              <p className="font-display italic text-sm text-brand-primary mb-2">
                 {isOrientation ? 'Why this matters' : 'How this shows up on the exam'}
               </p>
-              <p className="text-brand-text text-base sm:text-lg leading-relaxed">
+              <p className="text-brand-text text-base sm:text-lg leading-[1.7]">
                 {renderInline(block.examContext)}
               </p>
             </div>
@@ -776,7 +815,7 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
       return (
         <div className="space-y-5">
           {block.heading && (
-            <h2 className="text-sm font-medium uppercase tracking-wide text-brand-secondary">
+            <h2 className="font-display italic text-base text-brand-secondary">
               {block.heading}
             </h2>
           )}
@@ -788,7 +827,7 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
               {block.items.map((item, i) => (
                 <div key={i} className="rounded-xl bg-brand-surface p-4 sm:p-5">
                   <dt className="text-brand-primary font-medium">{renderInline(item.label)}</dt>
-                  <dd className="mt-1 text-brand-text text-base sm:text-lg leading-relaxed">{renderInline(item.value)}</dd>
+                  <dd className="mt-1 text-brand-text text-base sm:text-lg leading-[1.7]">{renderInline(item.value)}</dd>
                 </div>
               ))}
             </dl>
@@ -829,4 +868,12 @@ async function loadNextLesson(courseId: string, lessonId: string): Promise<NextL
   const i = ordered.findIndex((l) => l.id === lessonId)
   const next = i >= 0 ? ordered[i + 1] : undefined
   return next ? { id: next.id, title: next.title } : null
+}
+
+function Kbd({ children }: { children: React.ReactNode }) {
+  return (
+    <kbd className="inline-flex min-w-[1.4rem] justify-center rounded border border-brand-muted/40 px-1 font-sans text-[11px] text-brand-secondary">
+      {children}
+    </kbd>
+  )
 }

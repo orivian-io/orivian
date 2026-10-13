@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { CloseIcon, CompassMoment, RetryIcon } from '@/components/Icons'
 import ReportProblem from '@/components/ReportProblem'
 import { supabase } from '@/lib/supabase'
 import { notifyProgress } from '@/lib/stats'
@@ -184,9 +185,9 @@ export default function DomainCheckpointPage() {
             href={`/courses/${section.course?.slug || courseSlug}`}
             className="text-sm text-brand-secondary hover:text-brand-text transition"
           >
-            ✕ Exit
+            <CloseIcon className="inline h-3.5 w-3.5 -mt-0.5 mr-1" />Exit
           </Link>
-          <span className="flex items-center gap-2 text-xs text-brand-secondary uppercase tracking-wide">
+          <span className="font-display italic text-sm flex items-center gap-2 text-brand-secondary">
             <DomainIcon slug={section.slug} className="w-4 h-4 text-brand-primary/70" />
             {section.title}
           </span>
@@ -194,7 +195,7 @@ export default function DomainCheckpointPage() {
 
         {phase === 'intro' && (
           <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-xs font-medium uppercase tracking-wide text-brand-primary mb-3">Domain Checkpoint</p>
+            <p className="font-display italic text-sm text-brand-primary mb-3">Domain Checkpoint</p>
             <h1 className="text-3xl sm:text-4xl font-display font-medium mb-4">{section.title}</h1>
             <p className="text-brand-secondary text-lg max-w-xl mx-auto mb-8">
               A full-length check across everything in this domain, not just one lesson. Answer every question, then
@@ -271,7 +272,13 @@ export default function DomainCheckpointPage() {
         {phase === 'results' && result && (
           <div className="flex-1 flex flex-col py-4">
             <div className="text-center mb-8">
-              <p className="text-5xl mb-2">{result.passed ? '✅' : '↻'}</p>
+              <div className="mb-3 flex justify-center">
+                {result.passed ? (
+                  <CompassMoment className="h-16 w-16 text-brand-success" />
+                ) : (
+                  <RetryIcon className="h-12 w-12 text-brand-alert" />
+                )}
+              </div>
               <h1 className="text-2xl font-medium mb-1">
                 {result.passed ? 'Checkpoint passed!' : 'Not quite — try again'}
               </h1>

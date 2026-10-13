@@ -27,6 +27,7 @@ import {
   type MyStats,
   type Tally,
 } from '@/lib/stats'
+import { BearingIcon, FlameIcon, SummitIcon } from '@/components/Icons'
 
 const MIN_ANSWERS_FOR_INSIGHT = 5
 const MEDALS = ['🥇', '🥈', '🥉']
@@ -96,7 +97,7 @@ export default function StatsPage() {
 
       {/* Headline numbers */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-12">
-        <Tile big={`${tier?.emoji ?? '🔥'} ${current}`} label="Current streak" sub={current === 1 ? 'day' : 'days'} highlight={studied_today} />
+        <Tile big={<><FlameIcon className="inline h-7 w-7 -mt-1 mr-1.5" />{current}</>} label="Current streak" sub={`${current === 1 ? 'day' : 'days'}${tier ? ` · ${tier.name}` : ''}`} highlight={studied_today} />
         <Tile big={String(longest)} label="Longest streak" sub={longest === 1 ? 'day' : 'days'} />
         <Tile big={stats.xp.week.toLocaleString()} label="XP this week" sub={`${stats.xp.total.toLocaleString()} all-time`} />
         <Tile big={String(stats.lessons_completed)} label="Lessons completed" sub="all courses" />
@@ -179,7 +180,7 @@ export default function StatsPage() {
           <h2 className="text-xl font-medium">Leaderboards</h2>
           <div className="flex gap-1 rounded-lg bg-brand-surface p-1 text-sm" role="tablist">
             {[
-              ['streaks', '🔥 Streaks'],
+              ['streaks', 'Streaks'],
               ['day', 'Top today'],
               ['week', 'Top this week'],
             ].map(([id, label]) => (
@@ -293,7 +294,7 @@ function TimeTile({ label, value, sub, subTone }: { label: string; value: string
   return (
     <div className="rounded-xl bg-brand-surface p-4 sm:p-5">
       <p className="text-xs text-brand-secondary mb-1">{label}</p>
-      <p className="text-2xl sm:text-3xl font-medium tabular-nums">{value}</p>
+      <p className="font-display text-3xl sm:text-4xl tabular-nums">{value}</p>
       {sub && (
         <p className={`text-xs tabular-nums ${subTone === 'up' ? 'text-brand-primary' : 'text-brand-secondary'}`}>{sub}</p>
       )}
@@ -303,7 +304,7 @@ function TimeTile({ label, value, sub, subTone }: { label: string; value: string
 
 function NextUnlock({ level }: { level: number }) {
   const next = nextAvatarUnlock(level)
-  if (!next) return <p className="mt-4 text-xs text-brand-secondary">Every avatar unlocked. 🏔️</p>
+  if (!next) return <p className="mt-4 text-xs text-brand-secondary">Every avatar unlocked.</p>
   return (
     <Link
       href="/profile?avatars=1"
@@ -315,15 +316,15 @@ function NextUnlock({ level }: { level: number }) {
       <span className="text-brand-secondary">
         Next avatar: <span className="text-brand-text">{next.name}</span> unlocks at Level {next.unlockLevel}
       </span>
-      <span className="ml-auto text-brand-primary">Avatars →</span>
+      <span className="ml-auto text-brand-primary">Avatars</span>
     </Link>
   )
 }
 
-function Tile({ big, label, sub, highlight }: { big: string; label: string; sub?: string; highlight?: boolean }) {
+function Tile({ big, label, sub, highlight }: { big: React.ReactNode; label: string; sub?: string; highlight?: boolean }) {
   return (
     <div className={`rounded-xl p-5 ${highlight ? 'bg-brand-primary/10 border border-brand-primary/40' : 'bg-brand-surface'}`}>
-      <p className="text-3xl font-medium text-brand-primary tabular-nums">{big}</p>
+      <p className="font-display text-4xl text-brand-primary tabular-nums">{big}</p>
       <p className="text-sm text-brand-text mt-1">{label}</p>
       {sub && <p className="text-xs text-brand-secondary">{sub}</p>}
     </div>
@@ -335,7 +336,7 @@ function AccuracyTile({ label, tally }: { label: string; tally: Tally }) {
   return (
     <div className="rounded-xl bg-brand-surface p-4 sm:p-5">
       <p className="text-xs text-brand-secondary mb-1">{label}</p>
-      <p className="text-2xl sm:text-3xl font-medium tabular-nums">{pct === null ? '-' : `${pct}%`}</p>
+      <p className="font-display text-3xl sm:text-4xl tabular-nums">{pct === null ? '-' : `${pct}%`}</p>
       <p className="text-xs text-brand-secondary tabular-nums">
         {tally.answered > 0 ? `${tally.correct} of ${tally.answered} correct` : 'No answers yet'}
       </p>
@@ -372,21 +373,25 @@ function CourseCard({ course }: { course: CourseStat }) {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           <InsightList
-            title="💪 Strengths"
+            title="Strengths"
+            icon={<SummitIcon className="h-4 w-4 text-brand-success" />}
             empty="No domain at 80%+ yet - keep going."
             items={strengths}
           />
-          <InsightList title="🎯 Focus areas" empty="Nothing below 80%. Great work." items={focus} />
+          <InsightList title="Focus areas" icon={<BearingIcon className="h-4 w-4 text-brand-primary" />} empty="Nothing below 80%. Great work." items={focus} />
         </div>
       )}
     </div>
   )
 }
 
-function InsightList({ title, empty, items }: { title: string; empty: string; items: { section_id: string; title: string; pct: number; correct: number; answered: number }[] }) {
+function InsightList({ title, icon, empty, items }: { title: string; icon?: React.ReactNode; empty: string; items: { section_id: string; title: string; pct: number; correct: number; answered: number }[] }) {
   return (
     <div>
-      <p className="text-sm text-brand-secondary mb-2">{title}</p>
+      <p className="flex items-center gap-1.5 text-sm text-brand-secondary mb-2">
+        {icon}
+        {title}
+      </p>
       {items.length === 0 ? (
         <p className="text-sm text-brand-muted">{empty}</p>
       ) : (
@@ -412,7 +417,6 @@ function LeaderboardList({ entries, mode }: { entries: LeaderboardEntry[]; mode:
   return (
     <ol className="rounded-xl bg-brand-surface divide-y divide-brand-muted/10">
       {entries.map((e, i) => {
-        const tier = mode === 'streak' ? tierFor(e.current ?? 0) : null
         return (
           <li
             key={`${e.name}-${i}`}
@@ -428,7 +432,7 @@ function LeaderboardList({ entries, mode }: { entries: LeaderboardEntry[]; mode:
             {mode === 'streak' ? (
               <span className="text-sm tabular-nums">
                 <span className="text-brand-text">
-                  {tier?.emoji ?? '🔥'} {e.current} day{e.current === 1 ? '' : 's'}
+                  <FlameIcon className="inline h-3.5 w-3.5 -mt-0.5 mr-1 text-brand-primary" />{e.current} day{e.current === 1 ? '' : 's'}
                 </span>
                 <span className="ml-3 text-brand-muted">best {e.longest}</span>
               </span>
