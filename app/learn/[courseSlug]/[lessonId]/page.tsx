@@ -466,7 +466,7 @@ export default function LessonPlayerPage() {
               ))}
             </div>
 
-            <div ref={blockRef} className="flex-1 flex flex-col justify-start pt-4 sm:pt-10 pb-8 max-w-[42rem]">
+            <div ref={blockRef} className="flex-1 flex flex-col justify-start pt-4 sm:pt-10 pb-8 w-full max-w-[42rem] mx-auto">
               <ContentBlockView block={currentBlock} isOrientation={lesson.lesson_type === 'orientation'} />
             </div>
 
