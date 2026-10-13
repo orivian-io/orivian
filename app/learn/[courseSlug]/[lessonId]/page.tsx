@@ -7,7 +7,7 @@ import ReportProblem from '@/components/ReportProblem'
 import { supabase } from '@/lib/supabase'
 import { useStudyTimer } from '@/lib/use-study-timer'
 import { blockToSpeechText, type ContentBlock } from '@/lib/narration'
-import { prefetchNarration, startNarration, stopNarration } from '@/lib/narrator'
+import { getNarrationPrefs, prefetchNarration, startNarration, stopNarration } from '@/lib/narrator'
 import { createReadAlong } from '@/lib/read-along'
 import { notifyProgress } from '@/lib/stats'
 import { createNote, listLessonNotes, type Note } from '@/lib/notes'
@@ -133,12 +133,14 @@ export default function LessonPlayerPage() {
     if (lesson?.id) void prefetchNarration(lesson.id)
   }, [lesson?.id])
 
-  // Stop narration on unmount, and whenever the visible block/phase changes.
+  // Stop narration on unmount, and whenever the phase or lesson changes.
+  // Moving between slides is handled in goToBlock (so auto-play can start
+  // the next slide's narration without being cancelled here).
   // Stopping fires the narration's onEnd, which resets `speaking`.
   useEffect(() => () => stopNarration(), [])
   useEffect(() => {
     stopNarration()
-  }, [blockIndex, phase])
+  }, [phase, lessonId])
 
   const blockRef = useRef<HTMLDivElement>(null)
 
@@ -159,25 +161,47 @@ export default function LessonPlayerPage() {
   const currentBlock = lesson?.content_blocks[blockIndex]
   const isLastBlock = lesson ? blockIndex === lesson.content_blocks.length - 1 : false
 
-  const handleListen = () => {
-    if (!currentBlock || !lesson) return
-    if (speaking) {
-      stopNarration()
-      return
-    }
+  // Reads a block aloud with read-along highlighting. The highlighter is
+  // attached on the first progress update rather than up front, so this can
+  // be called from the Next click before the new slide has rendered - which
+  // keeps playback inside the tap, as mobile browsers require.
+  const narrateBlock = (block: ContentBlock) => {
+    if (!lesson) return
     stopNarration()
-    const text = blockToSpeechText(currentBlock)
-    const readAlong = createReadAlong(blockRef.current, text)
+    const text = blockToSpeechText(block)
+    let readAlong: ReturnType<typeof createReadAlong> | null = null
     setSpeaking(true)
     startNarration({
       lessonId: lesson.id,
       text,
-      onProgress: readAlong.update,
+      onProgress: (progress) => {
+        readAlong ??= createReadAlong(blockRef.current, text)
+        readAlong.update(progress)
+      },
       onEnd: () => {
-        readAlong.clear()
+        readAlong?.clear()
         setSpeaking(false)
       },
     })
+  }
+
+  const handleListen = () => {
+    if (!currentBlock) return
+    if (speaking) {
+      stopNarration()
+      return
+    }
+    narrateBlock(currentBlock)
+  }
+
+  // Next/Back. Always stops the current slide's narration; if the learner
+  // has turned on auto-play, starts reading the new slide straight away.
+  const goToBlock = (index: number) => {
+    if (!lesson) return
+    stopNarration()
+    setBlockIndex(index)
+    const block = lesson.content_blocks[index]
+    if (block && getNarrationPrefs().autoPlay) narrateBlock(block)
   }
 
   // Shared by domain recaps and Domain 0 orientation lessons - both are
@@ -385,7 +409,7 @@ export default function LessonPlayerPage() {
               <div className="flex items-center gap-3">
                 {blockIndex > 0 && (
                   <button
-                    onClick={() => setBlockIndex((i) => i - 1)}
+                    onClick={() => goToBlock(blockIndex - 1)}
                     className="text-sm text-brand-secondary hover:text-brand-text transition px-3 py-2"
                   >
                     Back
@@ -418,7 +442,7 @@ export default function LessonPlayerPage() {
                   )
                 ) : (
                   <button
-                    onClick={() => setBlockIndex((i) => i + 1)}
+                    onClick={() => goToBlock(blockIndex + 1)}
                     className="bg-brand-primary text-black px-5 py-2.5 rounded-md text-sm font-medium hover:bg-brand-primary-light transition"
                   >
                     Next
@@ -539,7 +563,7 @@ export default function LessonPlayerPage() {
                     Try again
                   </button>
                   <button
-                    onClick={() => { setPhase('content'); setBlockIndex(0) }}
+                    onClick={() => { stopNarration(); setPhase('content'); setBlockIndex(0) }}
                     className="text-sm text-brand-secondary hover:text-brand-text transition px-3 py-2.5"
                   >
                     Review lesson

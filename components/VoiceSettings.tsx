@@ -13,10 +13,11 @@ import {
 } from '@/lib/narrator'
 
 // "Voice" button beside Listen. Opens a panel to pick one of Orivian's
-// narrator voices and a reading speed. Saved on this device.
+// narrator voices, a reading speed, and whether each slide is read
+// automatically. Saved on this device.
 export default function VoiceSettings({ onBeforePreview }: { onBeforePreview?: () => void }) {
   const [open, setOpen] = useState(false)
-  const [prefs, setPrefs] = useState<NarrationPrefs>({ voice: DEFAULT_VOICE, rate: 1 })
+  const [prefs, setPrefs] = useState<NarrationPrefs>({ voice: DEFAULT_VOICE, rate: 1, autoPlay: false })
   const [previewing, setPreviewing] = useState<NarrationVoiceId | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -125,6 +126,29 @@ export default function VoiceSettings({ onBeforePreview }: { onBeforePreview?: (
                 {r}×
               </button>
             ))}
+          </div>
+
+          <div className="mt-4 flex items-start justify-between gap-3 border-t border-brand-muted/15 pt-4">
+            <div>
+              <p id="autoplay-label" className="text-sm text-brand-text">Auto-play each slide</p>
+              <p className="text-xs text-brand-secondary">Start reading as soon as you press Next.</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={prefs.autoPlay}
+              aria-labelledby="autoplay-label"
+              onClick={() => setNarrationPrefs({ autoPlay: !prefs.autoPlay })}
+              className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition ${
+                prefs.autoPlay ? 'bg-brand-primary' : 'bg-brand-muted/30'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-brand-bg shadow transition-transform ${
+                  prefs.autoPlay ? 'translate-x-5' : ''
+                }`}
+              />
+            </button>
           </div>
         </div>
       )}

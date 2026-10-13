@@ -25,12 +25,14 @@ import { speakWithBrowser } from '@/lib/tts'
 // Preferences (saved on this device)
 // ---------------------------------------------------------------------------
 
-export type NarrationPrefs = { voice: NarrationVoiceId; rate: number }
+// autoPlay: start reading each slide as soon as the learner moves to it
+// with Next/Back, instead of waiting for a tap on Listen.
+export type NarrationPrefs = { voice: NarrationVoiceId; rate: number; autoPlay: boolean }
 
 export const RATE_OPTIONS = [0.75, 1, 1.25, 1.5, 1.75] as const
 
 const PREFS_KEY = 'orivian.narration.prefs'
-const DEFAULT_PREFS: NarrationPrefs = { voice: DEFAULT_VOICE, rate: 1 }
+const DEFAULT_PREFS: NarrationPrefs = { voice: DEFAULT_VOICE, rate: 1, autoPlay: false }
 
 const listeners = new Set<() => void>()
 
@@ -48,6 +50,7 @@ export function getNarrationPrefs(): NarrationPrefs {
     return {
       voice: isNarrationVoice(parsed.voice) ? parsed.voice : DEFAULT_VOICE,
       rate: typeof parsed.rate === 'number' && parsed.rate >= 0.5 && parsed.rate <= 2 ? parsed.rate : 1,
+      autoPlay: parsed.autoPlay === true,
     }
   } catch {
     return DEFAULT_PREFS
