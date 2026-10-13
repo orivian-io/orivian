@@ -563,6 +563,12 @@ export default function CoursePage() {
 
       {user && enrolled && allSteps.length > 0 && (
         <div className="mb-6 flex items-center justify-end gap-3">
+          {hiddenDomains.length > 0 && (
+            <p className="mr-auto text-sm text-brand-secondary">
+              <span className="text-brand-primary">✓</span> {hiddenDomains.length} completed domain
+              {hiddenDomains.length === 1 ? '' : 's'} hidden
+            </p>
+          )}
           <label htmlFor="hide-completed" className="text-sm text-brand-secondary cursor-pointer select-none">
             Hide completed
           </label>
@@ -591,15 +597,6 @@ export default function CoursePage() {
       />
 
       <div className="space-y-10 mb-12">
-        {hiddenDomains.length > 0 && (
-          <p className="text-sm text-brand-secondary -mb-4">
-            <span className="text-brand-primary">✓</span> {hiddenDomains.length} completed domain{hiddenDomains.length === 1 ? '' : 's'} hidden
-            {' · '}
-            <button type="button" onClick={toggleHideCompleted} className="text-brand-primary hover:underline">
-              Show
-            </button>
-          </p>
-        )}
         {sections.map((section) => {
           const sectionLessons = lessonsBySection.get(section.id) || []
           if (sectionLessons.length === 0) return null
