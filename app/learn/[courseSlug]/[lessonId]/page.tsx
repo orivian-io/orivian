@@ -68,6 +68,7 @@ export default function LessonPlayerPage() {
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
   const [submitting, setSubmitting] = useState(false)
   const [examError, setExamError] = useState('')
+  const [loadingExam, setLoadingExam] = useState(false)
   const [result, setResult] = useState<ExamResult | null>(null)
 
   // Only accrues study time while actually reading content or taking the
@@ -229,25 +230,50 @@ export default function LessonPlayerPage() {
     setPhase('exam')
     setExamError('')
     setSubmitting(false)
+    setQuestions([])
+    setLoadingExam(true)
 
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        setExamError('Your session has expired. Please sign in again to take the exam.')
+        return
+      }
 
-    const res = await fetch('/api/exams/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ lessonId }),
-    })
-    const json = await res.json()
+      // Give up after 20s rather than leaving the learner on a blank page.
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 20000)
+      const res = await fetch('/api/exams/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ lessonId }),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout))
 
-    if (!res.ok) {
-      setExamError(json.error || 'Could not load the exam.')
-      return
+      // The server can answer with a non-JSON error page (e.g. a crash or
+      // timeout), so don't assume the body parses.
+      const json = await res.json().catch(() => null)
+
+      if (!res.ok || !json || !Array.isArray(json.questions)) {
+        console.error('[exam] start failed', res.status, json)
+        setExamError(json?.error || `Could not load the exam (error ${res.status}).`)
+        return
+      }
+
+      setQuestions(json.questions)
+      setAnswers({})
+      setResult(null)
+    } catch (err) {
+      console.error('[exam] start failed', err)
+      setExamError(
+        err instanceof DOMException && err.name === 'AbortError'
+          ? 'The exam took too long to load. Check your connection and try again.'
+          : 'Could not load the exam. Check your connection and try again.'
+      )
+    } finally {
+      setLoadingExam(false)
     }
-
-    setQuestions(json.questions)
-    setAnswers({})
-    setResult(null)
   }
 
   const toggleAnswer = (questionId: string, choiceId: string, questionType: 'single' | 'multi') => {
@@ -460,7 +486,25 @@ export default function LessonPlayerPage() {
               Answer every question, then submit. You need {questions.length > 0 ? '80%' : '…'} to pass.
             </p>
 
-            {examError && <p className="text-red-500 text-sm mb-4">{examError}</p>}
+            {loadingExam && <p className="text-sm text-brand-secondary mb-4">Loading questions…</p>}
+
+            {examError && (
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                <p className="text-red-500 text-sm">{examError}</p>
+                <button
+                  onClick={startExam}
+                  className="text-sm text-brand-primary hover:underline"
+                >
+                  Try again
+                </button>
+                <button
+                  onClick={() => setPhase('content')}
+                  className="text-sm text-brand-secondary hover:text-brand-text"
+                >
+                  Back to lesson
+                </button>
+              </div>
+            )}
 
             <div className="space-y-6 mb-8">
               {questions.map((q, qi) => (
@@ -546,7 +590,7 @@ export default function LessonPlayerPage() {
               })}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {result.passed ? (
                 <Link
                   href={`/courses/${lesson.course?.slug || courseSlug}`}
@@ -570,6 +614,12 @@ export default function LessonPlayerPage() {
                   </button>
                 </>
               )}
+              <Link
+                href={`/courses/${lesson.course?.slug || courseSlug}/review/${lesson.id}`}
+                className="text-sm text-brand-secondary hover:text-brand-primary transition px-3 py-2.5"
+              >
+                All attempts →
+              </Link>
             </div>
           </div>
         )}

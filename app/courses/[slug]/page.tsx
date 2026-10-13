@@ -89,6 +89,9 @@ export default function CoursePage() {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set())
   const [startedIds, setStartedIds] = useState<Set<string>>(new Set())
   const [bestScoreByLesson, setBestScoreByLesson] = useState<Map<string, number>>(new Map())
+  // Lessons whose mini-exam the learner has taken at least once, so the
+  // lesson row can link to a review of past attempts.
+  const [attemptedLessonIds, setAttemptedLessonIds] = useState<Set<string>>(new Set())
   const [checkpointCounts, setCheckpointCounts] = useState<Map<string, number>>(new Map())
   const [checkpointBestScore, setCheckpointBestScore] = useState<Map<string, number>>(new Map())
   const [checkpointPassed, setCheckpointPassed] = useState<Set<string>>(new Set())
@@ -268,15 +271,18 @@ export default function CoursePage() {
           studySessions?.forEach((s) => s.lesson_id && started.add(s.lesson_id))
 
           const bestScores = new Map<string, number>()
+          const attempted = new Set<string>()
           attempts?.forEach((a) => {
             if (!a.lesson_id) return
             started.add(a.lesson_id)
+            attempted.add(a.lesson_id)
             const prevBest = bestScores.get(a.lesson_id) ?? -1
             if (a.score_percent > prevBest) bestScores.set(a.lesson_id, a.score_percent)
           })
 
           setStartedIds(started)
           setBestScoreByLesson(bestScores)
+          setAttemptedLessonIds(attempted)
         }
       }
 
@@ -416,6 +422,8 @@ export default function CoursePage() {
 
           const isOpen = openSectionIds.has(section.id)
           const completedInSection = sectionLessons.filter((l) => completedIds.has(l.id)).length
+          const sectionDone = completedInSection === sectionLessons.length
+          const sectionPercent = Math.round((completedInSection / sectionLessons.length) * 100)
 
           return (
             <div key={section.id}>
@@ -425,8 +433,22 @@ export default function CoursePage() {
                 aria-expanded={isOpen}
                 className="w-full flex items-start gap-4 mb-4 text-left group cursor-pointer rounded-xl -mx-3 px-3 py-2 hover:bg-brand-surface active:bg-brand-surface-raised transition-colors"
               >
-                <div className="shrink-0 h-11 w-11 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
+                <div
+                  className={`relative shrink-0 h-11 w-11 rounded-full flex items-center justify-center transition-colors ${
+                    enrolled && sectionDone
+                      ? 'bg-brand-primary text-black'
+                      : 'bg-brand-primary/10 text-brand-primary'
+                  }`}
+                >
                   <DomainIcon slug={section.slug} className="w-6 h-6" />
+                  {enrolled && sectionDone && (
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-brand-bg border border-brand-primary text-brand-primary text-[10px] leading-none flex items-center justify-center"
+                      aria-hidden="true"
+                    >
+                      ✓
+                    </span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -434,12 +456,39 @@ export default function CoursePage() {
                     {sectionMinutes > 0 && (
                       <span className="text-xs text-brand-secondary whitespace-nowrap">
                         {formatDuration(sectionMinutes)} · {sectionLessons.length} lesson{sectionLessons.length === 1 ? '' : 's'}
-                        {completedInSection > 0 ? ` · ${completedInSection} done` : ''}
                       </span>
                     )}
                   </div>
                   {section.description && (
                     <p className="text-sm text-brand-secondary mt-1">{renderInline(section.description)}</p>
+                  )}
+                  {enrolled && (
+                    <div className="mt-3 flex items-center gap-3 max-w-xl">
+                      <div
+                        className="flex-1 h-1.5 rounded-full bg-brand-muted/20 overflow-hidden"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={sectionLessons.length}
+                        aria-valuenow={completedInSection}
+                        aria-label={`${section.title} progress`}
+                      >
+                        <div
+                          className="h-full rounded-full bg-brand-primary transition-[width] duration-500"
+                          style={{ width: `${sectionPercent}%` }}
+                        />
+                      </div>
+                      <span
+                        className={`text-xs whitespace-nowrap tabular-nums ${
+                          sectionDone ? 'text-brand-primary font-medium' : completedInSection > 0 ? 'text-brand-text' : 'text-brand-muted'
+                        }`}
+                      >
+                        {sectionDone
+                          ? '✓ Complete'
+                          : completedInSection > 0
+                            ? `${completedInSection} of ${sectionLessons.length} done`
+                            : 'Not started'}
+                      </span>
+                    </div>
                   )}
                 </div>
                 <svg
@@ -457,6 +506,7 @@ export default function CoursePage() {
                   const isComplete = completedIds.has(lesson.id)
                   const isStarted = !isComplete && startedIds.has(lesson.id)
                   const bestScore = bestScoreByLesson.get(lesson.id)
+                  const hasAttempts = attemptedLessonIds.has(lesson.id)
                   const questionCount = questionCounts.get(lesson.id) || 0
                   const minutes = lessonMinutes(lesson, questionCount)
 
@@ -503,19 +553,32 @@ export default function CoursePage() {
                     <div key={lesson.id} className="group relative">
                       <Link
                         href={`/learn/${slug}/${lesson.id}`}
-                        className="rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-start justify-between gap-4"
+                        className={`rounded-xl bg-brand-surface hover:bg-brand-surface-raised transition p-4 flex items-start justify-between gap-4 ${hasAttempts ? 'pb-10' : ''}`}
                       >
                         {inner}
                       </Link>
-                      {(isComplete || isStarted) && (
-                        <button
-                          type="button"
-                          onClick={() => setResetTarget({ scope: 'lesson', id: lesson.id, title: lesson.title })}
-                          className="absolute bottom-3 right-4 text-xs text-brand-muted hover:text-red-400 transition sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
-                          title="Reset this lesson's progress"
-                        >
-                          ↺ Reset
-                        </button>
+                      {(isComplete || isStarted || hasAttempts) && (
+                        <div className="absolute bottom-3 right-4 flex items-center gap-4">
+                          {(isComplete || isStarted) && (
+                            <button
+                              type="button"
+                              onClick={() => setResetTarget({ scope: 'lesson', id: lesson.id, title: lesson.title })}
+                              className="text-xs text-brand-muted hover:text-red-400 transition sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"
+                              title="Reset this lesson's progress"
+                            >
+                              ↺ Reset
+                            </button>
+                          )}
+                          {hasAttempts && (
+                            <Link
+                              href={`/courses/${slug}/review/${lesson.id}`}
+                              className="text-xs text-brand-primary/90 hover:text-brand-primary hover:underline transition"
+                              title="See your past mini-exam attempts and the questions you missed"
+                            >
+                              Review exam answers →
+                            </Link>
+                          )}
+                        </div>
                       )}
                     </div>
                   ) : (
