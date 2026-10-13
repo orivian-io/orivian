@@ -221,7 +221,8 @@ export function blockToSpeechText(block: ContentBlock): string {
 
 // Smooths written punctuation that text-to-speech reads awkwardly. Spaced
 // dashes become pauses, spaced or en-dash number ranges are read as "to",
-// and a few written abbreviations are expanded. Hyphenated words
+// a few written abbreviations are expanded, spaced slashes become pauses,
+// and math symbols (×, ÷, Ω, °F) are spoken as words. Hyphenated words
 // (non-repudiation, two-factor) and IDs like 800-88 or CVE-2021-44228 are
 // left alone.
 export function speakable(text: string): string {
@@ -233,6 +234,13 @@ export function speakable(text: string): string {
     .replace(/\bvs\.?(?=\s)/gi, 'versus')
     .replace(/\be\.g\.,?/gi, 'for example,')
     .replace(/\bi\.e\.,?/gi, 'that is,')
+    .replace(/\s+\/\s+/g, ', ')
+    .replace(/\s*×\s*/g, ' times ')
+    .replace(/\s*÷\s*/g, ' divided by ')
+    .replace(/\s*\(Ω\)/g, '')
+    .replace(/(\d)\s*Ω/g, '$1 ohms')
+    .replace(/\s*Ω/g, ' ohms')
+    .replace(/(\d)\s*°F\b/g, '$1 degrees Fahrenheit')
     .replace(/,\s*,/g, ',')
     .replace(/,\s*([.!?:;])/g, '$1')
 }
