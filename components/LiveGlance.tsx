@@ -27,7 +27,7 @@ export default function LiveGlance() {
   const { now, week } = data.totals
 
   return (
-    <section className="rounded-xl bg-brand-surface p-5">
+    <section className="rounded-xl bg-brand-surface p-5 sm:p-6">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 className="flex items-center gap-2 font-medium">
           <span className="relative inline-flex h-2 w-2" aria-hidden="true">

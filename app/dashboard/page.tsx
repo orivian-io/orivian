@@ -345,6 +345,9 @@ export default function DashboardPage() {
               </ul>
             </section>
           )}
+
+          {/* Main column, so the map gets the page's full width. */}
+          <LiveGlance />
         </div>
 
         <aside className="space-y-5">
@@ -365,7 +368,6 @@ export default function DashboardPage() {
             </section>
           )}
           <FriendsGlance />
-          <LiveGlance />
         </aside>
       </div>
     </main>
