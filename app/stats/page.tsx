@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import StreakCalendar from '@/components/StreakCalendar'
 import AccuracyTrend from '@/components/AccuracyTrend'
+import StudyTimeChart from '@/components/StudyTimeChart'
+import { fetchStudyTime, formatStudyTime, type StudyTime } from '@/lib/study-time'
 import LevelBadge from '@/components/LevelBadge'
 import Avatar from '@/components/Avatar'
 import { nextAvatarUnlock } from '@/lib/avatars'
@@ -33,6 +35,7 @@ export default function StatsPage() {
   const router = useRouter()
   const [stats, setStats] = useState<MyStats | null>(null)
   const [board, setBoard] = useState<Leaderboard | null>(null)
+  const [studyTime, setStudyTime] = useState<StudyTime | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'streaks' | 'day' | 'week'>('streaks')
 
@@ -48,6 +51,11 @@ export default function StatsPage() {
       setStats(s)
       setBoard(b)
       setLoading(false)
+      if (s) {
+        fetchStudyTime(user.id, s.timezone, todayIn(s.timezone))
+          .then(setStudyTime)
+          .catch(() => setStudyTime(null))
+      }
     }
     load()
   }, [router])
@@ -93,6 +101,9 @@ export default function StatsPage() {
         <Tile big={stats.xp.week.toLocaleString()} label="XP this week" sub={`${stats.xp.total.toLocaleString()} all-time`} />
         <Tile big={String(stats.lessons_completed)} label="Lessons completed" sub="all courses" />
       </div>
+
+      {/* Study time */}
+      {studyTime && <StudyTimeSection time={studyTime} today={today} />}
 
       {/* Accuracy */}
       <section className="mb-12">
@@ -216,6 +227,77 @@ export default function StatsPage() {
         </p>
       </details>
     </main>
+  )
+}
+
+function StudyTimeSection({ time, today }: { time: StudyTime; today: string }) {
+  const weekDelta = time.thisWeek - time.lastWeek
+  const maxCourse = Math.max(1, ...time.courses.map((c) => c.seconds))
+  return (
+    <section className="mb-12">
+      <h2 className="text-xl font-medium mb-1">Study time</h2>
+      <p className="text-sm text-brand-secondary mb-4">Time spent in lessons and exams, from the same timer you see while studying.</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <TimeTile label="Today" value={formatStudyTime(time.today)} />
+        <TimeTile
+          label="This week"
+          value={formatStudyTime(time.thisWeek)}
+          sub={
+            time.lastWeek === 0 && time.thisWeek === 0
+              ? 'Mon – Sun'
+              : `${weekDelta >= 0 ? '▲' : '▼'} ${formatStudyTime(Math.abs(weekDelta))} vs last week`
+          }
+          subTone={time.lastWeek === 0 && time.thisWeek === 0 ? undefined : weekDelta >= 0 ? 'up' : 'down'}
+        />
+        <TimeTile label="Daily average" value={formatStudyTime(time.last7Avg)} sub="last 7 days" />
+        <TimeTile label="All time" value={formatStudyTime(time.allTime)} sub={`${time.activeDays30} active day${time.activeDays30 === 1 ? '' : 's'} in the last 30`} />
+      </div>
+      {time.allTime > 0 ? (
+        <div className="grid gap-3 lg:grid-cols-[1fr_minmax(0,18rem)]">
+          <div className="rounded-xl bg-brand-surface p-5">
+            <StudyTimeChart days={time.days} weeks={time.weeks} today={today} />
+          </div>
+          {time.courses.length > 0 && (
+            <div className="rounded-xl bg-brand-surface p-5">
+              <p className="text-sm text-brand-secondary mb-4">By course · all time</p>
+              <ul className="space-y-3">
+                {time.courses.map((c) => (
+                  <li key={c.courseId}>
+                    <div className="flex items-baseline justify-between gap-3 text-sm mb-1">
+                      {c.slug ? (
+                        <Link href={`/courses/${c.slug}`} className="truncate text-brand-text hover:text-brand-primary transition">
+                          {c.title}
+                        </Link>
+                      ) : (
+                        <span className="truncate text-brand-text">{c.title}</span>
+                      )}
+                      <span className="shrink-0 tabular-nums text-brand-secondary">{formatStudyTime(c.seconds)}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-brand-muted/20 overflow-hidden">
+                      <div className="h-full rounded-full bg-brand-primary" style={{ width: `${(c.seconds / maxCourse) * 100}%` }} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : (
+        <EmptyNote>Open a lesson to start tracking your study time.</EmptyNote>
+      )}
+    </section>
+  )
+}
+
+function TimeTile({ label, value, sub, subTone }: { label: string; value: string; sub?: string; subTone?: 'up' | 'down' }) {
+  return (
+    <div className="rounded-xl bg-brand-surface p-4 sm:p-5">
+      <p className="text-xs text-brand-secondary mb-1">{label}</p>
+      <p className="text-2xl sm:text-3xl font-medium tabular-nums">{value}</p>
+      {sub && (
+        <p className={`text-xs tabular-nums ${subTone === 'up' ? 'text-brand-primary' : 'text-brand-secondary'}`}>{sub}</p>
+      )}
+    </div>
   )
 }
 
