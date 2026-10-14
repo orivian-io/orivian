@@ -43,6 +43,17 @@ export default function RichBlockView({ block }: { block: Rich }) {
   }
 }
 
+// Spelled-out name for an acronym label ("RPO" -> Recovery Point Objective),
+// set in the display italic so it reads as a name, not part of the definition.
+function Full({ text, block = false, className = '' }: { text?: string | null; block?: boolean; className?: string }) {
+  if (!text) return null
+  // Several names ("EOL: End of Life · EOS: End of Support") or a long one get their own line.
+  const own = block || text.includes(' · ') || text.length > 30
+  return (
+    <span className={`${own ? 'block' : 'ml-2'} font-display font-normal italic text-brand-primary-light/80 ${className}`}>{text}</span>
+  )
+}
+
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return <p className="font-display italic text-sm text-brand-primary mb-1">{children}</p>
 }
@@ -65,7 +76,10 @@ function TermSetView({ block }: { block: Extract<Rich, { type: 'term_set' }> }) 
             </span>
           )}
           <div>
-            <dt className="font-medium text-brand-primary">{t.term}</dt>
+            <dt className="font-medium text-brand-primary">
+              {t.term}
+              <Full text={t.full} />
+            </dt>
             <dd className="text-base leading-[1.6] text-brand-text">{renderInline(t.short)}</dd>
           </div>
         </div>
@@ -106,9 +120,12 @@ function CompareView({ block }: { block: Extract<Rich, { type: 'compare' }> }) {
           <thead>
             <tr>
               <th className="w-[24%] border-b border-brand-muted/30 py-2 pr-3" />
-              {block.columns.map((c) => (
-                <th key={c} scope="col" className="border-b border-brand-muted/30 px-3 py-2 text-left font-display text-base font-normal italic text-brand-primary">
+              {block.columns.map((c, i) => (
+                <th key={c} scope="col" className="border-b border-brand-muted/30 px-3 py-2 text-left align-bottom font-display text-base font-normal italic text-brand-primary">
                   {c}
+                  {block.columnsFull?.[i] && (
+                    <span className="block font-sans text-xs not-italic leading-snug text-brand-secondary">{block.columnsFull[i]}</span>
+                  )}
                 </th>
               ))}
             </tr>
@@ -118,6 +135,7 @@ function CompareView({ block }: { block: Extract<Rich, { type: 'compare' }> }) {
               <tr key={r.label}>
                 <th scope="row" className="border-b border-brand-muted/15 py-2.5 pr-3 text-left align-top text-sm font-normal text-brand-secondary">
                   {renderInline(r.label)}
+                  <Full text={r.full} block className="text-xs" />
                 </th>
                 {r.values.map((v, i) => (
                   <td key={i} className="border-b border-brand-muted/15 px-3 py-2.5 align-top leading-[1.55] text-brand-text">
@@ -390,7 +408,10 @@ function ItemNotes({ items, labelWidth }: { items: (DiagramItem | undefined)[]; 
         t?.note ? (
           <div key={t.label} className="flex flex-col sm:flex-row sm:gap-2">
             <dt className={`shrink-0 ${labelWidth ?? ''} ${t.muted ? 'italic text-brand-secondary' : 'text-brand-primary'}`}>{t.label}</dt>
-            <dd className="text-brand-text/85">{renderInline(t.note)}</dd>
+            <dd className="text-brand-text/85">
+              <Full text={t.full} block />
+              {renderInline(t.note)}
+            </dd>
           </div>
         ) : null,
       )}
@@ -403,6 +424,7 @@ function Flow({ steps }: { steps: DiagramItem[] }) {
     <div className={`h-full rounded-lg border px-3 py-3 ${s.muted ? 'border-dashed border-brand-muted/50' : 'border-brand-primary/40 bg-brand-primary/[0.06]'}`}>
       <p className="font-display text-xs italic text-brand-primary">{i + 1}</p>
       <p className="font-medium leading-snug">{s.label}</p>
+      <Full text={s.full} block className="text-sm" />
       {s.note && <p className="mt-1 text-sm leading-snug text-brand-secondary">{renderInline(s.note)}</p>}
     </div>
   )
@@ -482,6 +504,7 @@ function Cycle({ d }: { d: Extract<Diagram, { kind: 'cycle' }> }) {
             <span className="w-5 shrink-0 font-display italic text-brand-primary">{i + 1}</span>
             <span>
               <span className="font-medium">{s.label}</span>
+              <Full text={s.full} />
               {s.note && <span className="block text-sm text-brand-secondary leading-snug">{renderInline(s.note)}</span>}
             </span>
           </li>
@@ -505,7 +528,10 @@ function Ladder({ d }: { d: Extract<Diagram, { kind: 'ladder' }> }) {
               {i + 1}
             </span>
             <div className="rounded-lg bg-brand-surface px-4 py-2.5" style={{ opacity: 1 - i * 0.08 }}>
-              <p className="font-medium leading-snug">{renderInline(r.label)}</p>
+              <p className="font-medium leading-snug">
+                {renderInline(r.label)}
+                <Full text={r.full} />
+              </p>
               {r.note && <p className="mt-0.5 text-sm leading-snug text-brand-secondary">{renderInline(r.note)}</p>}
             </div>
           </li>

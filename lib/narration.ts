@@ -8,22 +8,25 @@ export type ContentBlock =
   | { type: 'list'; style: 'bullet' | 'numbered'; items: string[] }
   | { type: 'callout'; variant: 'info' | 'warning' | 'tip'; text: string }
   // `example` adds an "In practice" line: a real incident or workplace case.
-  | { type: 'key_term'; term: string; definition: string; example?: string }
+  // `full` spells out an acronym term ("Recovery Point Objective"); it's shown
+  // set apart from the definition, never merged into it.
+  | { type: 'key_term'; term: string; full?: string; definition: string; example?: string }
   | { type: 'group'; heading?: string; blocks?: ContentBlock[]; items?: { label: string; value: string }[] }
   | { type: 'title'; text: string; overview: string; examContext: string }
   // Several terms on one slide, each with a one-line definition, optionally
   // beside a diagram. Replaces runs of single key-term slides.
-  | { type: 'term_set'; heading: string; intro?: string; terms: { term: string; short: string; mark?: string }[]; diagram?: Diagram }
+  | { type: 'term_set'; heading: string; intro?: string; terms: { term: string; full?: string; short: string; mark?: string }[]; diagram?: Diagram }
   // A side-by-side table. `values` lines up with `columns`; `cue` is the
   // "exam cue" row - the words in a question that point to each column.
-  | { type: 'compare'; heading: string; intro?: string; columns: string[]; rows: { label: string; values: string[] }[]; cue?: string[] }
+  // `columnsFull` lines up with `columns` and spells out acronym headers.
+  | { type: 'compare'; heading: string; intro?: string; columns: string[]; columnsFull?: (string | null)[]; rows: { label: string; full?: string; values: string[] }[]; cue?: string[] }
   // An ungraded practice question: pick an answer, then see why.
   | { type: 'scenario'; prompt: string; choices: { id: string; text: string }[]; answer: string; why: string; trap?: string }
   | { type: 'diagram'; heading: string; caption?: string; diagram: Diagram }
   // Worked calculation with the learner's own numbers.
   | { type: 'calc'; heading: string; kind: 'ale'; intro?: string; defaults?: { assetValue: number; exposureFactor: number; aro: number } }
 
-export type DiagramItem = { label: string; note?: string; muted?: boolean }
+export type DiagramItem = { label: string; full?: string; note?: string; muted?: boolean }
 
 // Diagrams are drawn by the lesson player from this data (no image files).
 export type Diagram =
@@ -127,6 +130,11 @@ function stripBold(text: string | null | undefined): string {
   return text.replace(/\*{1,3}(?=\S)([^*\n]+?)(?<=\S)\*{1,3}/g, '$1').replace(/\*+(?=\S)|(?<=\S)\*+/g, '')
 }
 
+// "RPO" + "Recovery Point Objective" is spoken "RPO, Recovery Point Objective".
+function withFull(label: string, full?: string | null) {
+  return full ? `${label}, ${full.replace(/ · /g, ', ')}` : label
+}
+
 function joinParts(parts: (string | undefined | null)[]) {
   return parts
     .map((p) => (p ?? '').trim())
@@ -145,21 +153,21 @@ function rawSpeechText(block: ContentBlock): string {
       return joinParts((block.items ?? []).map(stripBold))
     case 'key_term':
       return joinParts([
-        `${block.term}: ${stripBold(block.definition)}`,
+        `${withFull(block.term, block.full)}: ${stripBold(block.definition)}`,
         block.example ? `In practice: ${stripBold(block.example)}` : '',
       ])
     case 'term_set':
       return joinParts([
         block.heading,
         stripBold(block.intro),
-        ...(block.terms ?? []).map((t) => `${t.term}: ${stripBold(t.short)}`),
+        ...(block.terms ?? []).map((t) => `${withFull(t.term, t.full)}: ${stripBold(t.short)}`),
       ])
     case 'compare':
       return joinParts([
         block.heading,
         stripBold(block.intro),
         ...(block.rows ?? []).map((r) =>
-          joinParts([r.label, ...r.values.map((v, i) => `${block.columns[i] ?? ''}: ${stripBold(v)}`)]),
+          joinParts([withFull(r.label, r.full), ...r.values.map((v, i) => `${block.columns[i] ?? ''}: ${stripBold(v)}`)]),
         ),
         block.cue ? joinParts(['Exam cues', ...block.cue.map((c, i) => `${block.columns[i] ?? ''}: ${stripBold(c)}`)]) : '',
       ])
@@ -198,7 +206,7 @@ function rawSpeechText(block: ContentBlock): string {
 
 function diagramSpeech(d: Diagram | undefined): string {
   if (!d) return ''
-  const item = (i: DiagramItem) => (i.note ? `${i.label}: ${stripBold(i.note)}` : i.label)
+  const item = (i: DiagramItem) => (i.note ? `${withFull(i.label, i.full)}: ${stripBold(i.note)}` : withFull(i.label, i.full))
   switch (d.kind) {
     case 'triad':
       return joinParts(d.points.map(item))

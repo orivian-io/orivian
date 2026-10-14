@@ -828,7 +828,14 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
     case 'key_term':
       return (
         <div className="rounded-xl bg-brand-surface p-5 sm:p-6">
-          <p className="text-brand-primary font-medium mb-1 text-lg">{block.term}</p>
+          <p className="text-brand-primary font-medium mb-1 text-lg">
+            {block.term}
+            {block.full && (
+              <span className={`${block.full.includes(' · ') || block.full.length > 30 ? 'block' : 'ml-2'} font-display font-normal italic text-brand-primary-light/80`}>
+                {block.full}
+              </span>
+            )}
+          </p>
           <p className="text-brand-text text-base sm:text-lg leading-[1.7]">{renderInline(block.definition)}</p>
           {block.example && (
             <div className="mt-4 border-t border-brand-muted/15 pt-3">
