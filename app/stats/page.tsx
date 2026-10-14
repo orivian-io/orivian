@@ -9,6 +9,7 @@ import AccuracyTrend from '@/components/AccuracyTrend'
 import StudyTimeChart from '@/components/StudyTimeChart'
 import { fetchStudyTime, formatStudyTime, type StudyTime } from '@/lib/study-time'
 import LevelBadge from '@/components/LevelBadge'
+import ExamBadges from '@/components/ExamBadges'
 import Avatar from '@/components/Avatar'
 import { nextAvatarUnlock } from '@/lib/avatars'
 import { levelFor } from '@/lib/levels'
@@ -38,6 +39,7 @@ export default function StatsPage() {
   const [board, setBoard] = useState<Leaderboard | null>(null)
   const [studyTime, setStudyTime] = useState<StudyTime | null>(null)
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
   const [tab, setTab] = useState<'streaks' | 'day' | 'week'>('streaks')
 
   useEffect(() => {
@@ -47,6 +49,7 @@ export default function StatsPage() {
         router.push('/login')
         return
       }
+      setUserId(user.id)
       await syncTimezone(user.id).catch(() => {})
       const [s, b] = await Promise.all([fetchMyStats(), fetchLeaderboard()])
       setStats(s)
@@ -173,6 +176,9 @@ export default function StatsPage() {
           </div>
         </div>
       </section>
+
+      {/* Exam badges */}
+      {userId && <ExamBadges userId={userId} today={today} />}
 
       {/* Leaderboards */}
       <section className="mb-10">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAuthedUser } from '@/lib/get-authed-user'
+import { awardAccolades } from '@/lib/accolades'
 
 // The passing threshold and scoring disclaimer are per-exam data
 // (`final_exams.pass_threshold_percent` / `.scoring_disclaimer`), not
@@ -126,6 +127,7 @@ export async function POST(req: NextRequest) {
     .insert(gradedAnswers.map((a) => ({ ...a, attempt_id: attempt.id })))
 
   const explanationByQuestion = new Map(questions.map((q) => [q.id, q.explanation]))
+  const accolades = await awardAccolades(attempt.id, scorePercent)
 
   return NextResponse.json({
     scorePercent,
@@ -133,6 +135,7 @@ export async function POST(req: NextRequest) {
     correctCount,
     questionCount,
     passThreshold,
+    ...accolades,
     elapsedSeconds,
     timeLimitSeconds,
     withinTimeLimit,

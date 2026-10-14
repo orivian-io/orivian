@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAuthedUser } from '@/lib/get-authed-user'
+import { awardAccolades } from '@/lib/accolades'
 
 // Passing threshold for lesson mini-exams AND full-domain checkpoint exams.
 // Adjustable - not discussed with the user yet beyond "must pass to
@@ -116,12 +117,16 @@ export async function POST(req: NextRequest) {
 
   const explanationByQuestion = new Map(questions.map((q) => [q.id, q.explanation]))
 
+  // After progress is written, so a passing attempt is fully recorded first.
+  const accolades = await awardAccolades(attempt.id, scorePercent)
+
   return NextResponse.json({
     scorePercent,
     passed,
     correctCount,
     questionCount,
     passThreshold: PASS_THRESHOLD_PERCENT,
+    ...accolades,
     results: gradedAnswers.map((a) => ({
       questionId: a.question_id,
       correct: a.correct,

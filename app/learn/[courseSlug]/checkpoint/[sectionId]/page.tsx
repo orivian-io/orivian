@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CloseIcon, CompassMoment, RetryIcon } from '@/components/Icons'
+import { CloseIcon } from '@/components/Icons'
 import ReportProblem from '@/components/ReportProblem'
+import ExamResultHero, { ExamScoreRecap } from '@/components/ExamResultHero'
+import PerfectScoreCelebration from '@/components/PerfectScoreCelebration'
 import { supabase } from '@/lib/supabase'
+import type { AttemptAccolades } from '@/lib/badges'
 import { notifyProgress } from '@/lib/stats'
 import { DomainIcon } from '@/lib/domain-icons'
 
@@ -30,7 +33,7 @@ type ExamResult = {
   questionCount: number
   passThreshold: number
   results: { questionId: string; correct: boolean; explanation: string | null }[]
-}
+} & Partial<AttemptAccolades>
 
 type Phase = 'loading' | 'intro' | 'exam' | 'results' | 'not-found'
 
@@ -271,21 +274,25 @@ export default function DomainCheckpointPage() {
 
         {phase === 'results' && result && (
           <div className="flex-1 flex flex-col py-4">
-            <div className="text-center mb-8">
-              <div className="mb-3 flex justify-center">
-                {result.passed ? (
-                  <CompassMoment className="h-16 w-16 text-brand-success" />
-                ) : (
-                  <RetryIcon className="h-12 w-12 text-brand-alert" />
-                )}
-              </div>
-              <h1 className="text-2xl font-medium mb-1">
-                {result.passed ? 'Checkpoint passed!' : 'Not quite — try again'}
-              </h1>
-              <p className="text-brand-secondary text-sm">
-                {result.correctCount}/{result.questionCount} correct ({result.scorePercent}%, {result.passThreshold}% required)
-              </p>
-            </div>
+            <PerfectScoreCelebration
+              scorePercent={result.scorePercent}
+              correctCount={result.correctCount}
+              questionCount={result.questionCount}
+              accolades={result.accolades}
+              newBadges={result.newBadges}
+              repeatPerfect={result.repeatPerfect}
+            />
+            <ExamResultHero
+              scorePercent={result.scorePercent}
+              correctCount={result.correctCount}
+              questionCount={result.questionCount}
+              passThreshold={result.passThreshold}
+              passed={result.passed}
+              heading={result.passed ? 'Checkpoint passed!' : 'Not quite — try again'}
+              accolades={result.accolades}
+              newBadges={result.newBadges}
+              repeatPerfect={result.repeatPerfect}
+            />
 
             <div className="space-y-3 mb-8">
               {questions.map((q, qi) => {
@@ -310,6 +317,12 @@ export default function DomainCheckpointPage() {
               })}
             </div>
 
+            <ExamScoreRecap
+              scorePercent={result.scorePercent}
+              correctCount={result.correctCount}
+              questionCount={result.questionCount}
+              passed={result.passed}
+            />
             <div className="flex gap-3">
               <Link
                 href={`/courses/${section.course?.slug || courseSlug}`}

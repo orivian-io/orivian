@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CloseIcon, CompassMoment, ElevationIcon, NotesIcon, PauseIcon, RetryIcon, SoundIcon, StopIcon, TimerIcon } from '@/components/Icons'
+import { CloseIcon, ElevationIcon, NotesIcon, PauseIcon, SoundIcon, StopIcon, TimerIcon } from '@/components/Icons'
 import ReportProblem from '@/components/ReportProblem'
 import { supabase } from '@/lib/supabase'
 import { useStudyTimer } from '@/lib/use-study-timer'
@@ -17,6 +17,9 @@ import SaveSelectionButton from '@/components/SaveSelectionButton'
 import { DomainIcon } from '@/lib/domain-icons'
 import VoiceSettings from '@/components/VoiceSettings'
 import AnswerChoices from '@/components/AnswerChoices'
+import ExamResultHero, { ExamScoreRecap } from '@/components/ExamResultHero'
+import PerfectScoreCelebration from '@/components/PerfectScoreCelebration'
+import type { AttemptAccolades } from '@/lib/badges'
 import RichBlockView, { isRichBlock, isWideBlock } from '@/components/LessonBlocks'
 import { renderInline } from '@/lib/inline-format'
 import { formatDuration } from '@/lib/format-duration'
@@ -44,7 +47,7 @@ type ExamResult = {
   questionCount: number
   passThreshold: number
   results: { questionId: string; correct: boolean; explanation: string | null; correctChoiceIds?: string[] }[]
-}
+} & Partial<AttemptAccolades>
 
 type NextLesson = { id: string; title: string }
 
@@ -622,21 +625,25 @@ export default function LessonPlayerPage() {
 
         {phase === 'results' && result && (
           <div className="flex-1 flex flex-col py-4">
-            <div className="text-center mb-8">
-              <div className="mb-3 flex justify-center">
-                {result.passed ? (
-                  <CompassMoment className="h-16 w-16 text-brand-success" />
-                ) : (
-                  <RetryIcon className="h-12 w-12 text-brand-alert" />
-                )}
-              </div>
-              <h1 className="text-2xl font-medium mb-1">
-                {result.passed ? 'Lesson complete!' : 'Not quite — try again'}
-              </h1>
-              <p className="text-brand-secondary text-sm">
-                {result.correctCount}/{result.questionCount} correct ({result.scorePercent}%, {result.passThreshold}% required)
-              </p>
-            </div>
+            <PerfectScoreCelebration
+              scorePercent={result.scorePercent}
+              correctCount={result.correctCount}
+              questionCount={result.questionCount}
+              accolades={result.accolades}
+              newBadges={result.newBadges}
+              repeatPerfect={result.repeatPerfect}
+            />
+            <ExamResultHero
+              scorePercent={result.scorePercent}
+              correctCount={result.correctCount}
+              questionCount={result.questionCount}
+              passThreshold={result.passThreshold}
+              passed={result.passed}
+              heading={result.passed ? 'Lesson complete!' : 'Not quite — try again'}
+              accolades={result.accolades}
+              newBadges={result.newBadges}
+              repeatPerfect={result.repeatPerfect}
+            />
 
             <div className="space-y-3 mb-8">
               {questions.map((q, qi) => {
@@ -668,6 +675,12 @@ export default function LessonPlayerPage() {
               })}
             </div>
 
+            <ExamScoreRecap
+              scorePercent={result.scorePercent}
+              correctCount={result.correctCount}
+              questionCount={result.questionCount}
+              passed={result.passed}
+            />
             <div className="flex flex-wrap items-center gap-3">
               {result.passed ? (
                 <>

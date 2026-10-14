@@ -3,9 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CloseIcon, CompassMoment, RetryIcon, TimerIcon } from '@/components/Icons'
+import { CloseIcon, TimerIcon } from '@/components/Icons'
 import ReportProblem from '@/components/ReportProblem'
 import { supabase } from '@/lib/supabase'
+import type { AttemptAccolades } from '@/lib/badges'
+import ExamResultHero, { ExamScoreRecap } from '@/components/ExamResultHero'
+import PerfectScoreCelebration from '@/components/PerfectScoreCelebration'
 import { notifyProgress } from '@/lib/stats'
 import { DomainIcon } from '@/lib/domain-icons'
 import { formatDuration } from '@/lib/format-duration'
@@ -37,7 +40,7 @@ type ExamResult = {
   withinTimeLimit: boolean
   scoringDisclaimer: string
   results: { questionId: string; correct: boolean; explanation: string | null }[]
-}
+} & Partial<AttemptAccolades>
 
 type SavedProgress = {
   startedAt: string
@@ -437,29 +440,31 @@ export default function FinalExamPage() {
 
         {phase === 'results' && result && (
           <div className="flex-1 flex flex-col py-4">
-            <div className="text-center mb-6">
-              <div className="mb-3 flex justify-center">
-                {result.passed ? (
-                  <CompassMoment className="h-16 w-16 text-brand-success" />
-                ) : (
-                  <RetryIcon className="h-12 w-12 text-brand-alert" />
-                )}
-              </div>
-              <h1 className="text-2xl font-medium mb-1">
-                {result.passed ? 'Passing-equivalent score!' : 'Below the passing-equivalent line'}
-              </h1>
-              <p className="text-brand-secondary text-sm">
-                {result.correctCount}/{result.questionCount} correct ({result.scorePercent}%, {result.passThreshold}% treated as passing)
-              </p>
-              <p className="text-brand-secondary text-sm mt-1">
+            <PerfectScoreCelebration
+              scorePercent={result.scorePercent}
+              correctCount={result.correctCount}
+              questionCount={result.questionCount}
+              accolades={result.accolades}
+              newBadges={result.newBadges}
+              repeatPerfect={result.repeatPerfect}
+            />
+            <ExamResultHero
+              scorePercent={result.scorePercent}
+              correctCount={result.correctCount}
+              questionCount={result.questionCount}
+              passThreshold={result.passThreshold}
+              passed={result.passed}
+              heading={result.passed ? 'Passing-equivalent score!' : 'Below the passing-equivalent line'}
+              thresholdLabel="treated as passing"
+              accolades={result.accolades}
+              newBadges={result.newBadges}
+              repeatPerfect={result.repeatPerfect}
+            >
+              <p className="mt-1 text-sm text-brand-secondary">
                 Time: {formatDuration(result.elapsedSeconds)} / {formatDuration(result.timeLimitSeconds)} limit —{' '}
                 {result.withinTimeLimit ? 'within the time limit' : 'over the time limit'}
               </p>
-            </div>
-
-            <div className="rounded-xl bg-brand-surface p-4 mb-8 text-xs text-brand-secondary leading-relaxed">
-              {result.scoringDisclaimer}
-            </div>
+            </ExamResultHero>
 
             <div className="space-y-3 mb-8">
               {questions.map((q, qi) => {
@@ -484,6 +489,12 @@ export default function FinalExamPage() {
               })}
             </div>
 
+            <ExamScoreRecap
+              scorePercent={result.scorePercent}
+              correctCount={result.correctCount}
+              questionCount={result.questionCount}
+              passed={result.passed}
+            />
             <div className="flex gap-3">
               <Link
                 href={`/courses/${exam.course?.slug || courseSlug}`}
