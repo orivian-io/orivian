@@ -329,18 +329,28 @@ async function main() {
           '60',
         )
 
+      // Carry over every block whose audio already exists BEFORE generating
+      // anything, so each progress save below writes a complete manifest.
+      // (Previously a changed early block saved a manifest holding only the
+      // blocks seen so far, and the unchanged blocks after it were never
+      // written back - those slides then fell back to the browser voice.)
+      for (const block of blocks) {
+        const text = blockToSpeechText(block)
+        if (!text) continue
+        const hash = hashSpeechText(text)
+        const existing = previous?.blocks[hash]
+        if (existing && !next[hash]) {
+          next[hash] = existing
+          skipped++
+        }
+      }
+
       let lessonGenerated = 0
       for (const [blockIndex, block] of blocks.entries()) {
         const text = blockToSpeechText(block)
         if (!text) continue
         const hash = hashSpeechText(text)
         if (next[hash]) continue
-        const existing = previous?.blocks[hash]
-        if (existing) {
-          next[hash] = existing
-          skipped++
-          continue
-        }
         const blockStarted = Date.now()
         process.stdout.write(`    ${lesson.title} · block ${blockIndex + 1}/${blocks.length}... `)
         const { mp3, duration, segments } = await narrate(synth, text, voice)
@@ -356,7 +366,7 @@ async function main() {
 
       const changed = lessonGenerated > 0 || !previous || Object.keys(previous.blocks).length !== Object.keys(next).length
       if (changed) {
-        if (lessonGenerated === 0) await writeManifest()
+        await writeManifest()
         // Remove audio for blocks that no longer exist.
         const stale = Object.values(previous?.blocks ?? {})
           .map((b) => b.file)

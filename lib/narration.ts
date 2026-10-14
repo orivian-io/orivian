@@ -117,11 +117,14 @@ export type NarrationManifest = {
 // Speech text
 // ---------------------------------------------------------------------------
 
-// Lesson text can contain lightweight **bold** markdown for on-screen
-// emphasis. Strip it so the asterisks aren't read aloud.
+// Lesson text can contain lightweight markdown emphasis (**bold**,
+// *italic*, ***both***) for on-screen styling. Strip every asterisk so none
+// is ever read aloud as "asterisk". Text without asterisks is returned
+// untouched, so existing narration audio keeps matching.
 function stripBold(text: string | null | undefined): string {
   if (!text) return ''
-  return text.replace(/\*\*(.+?)\*\*/g, '$1')
+  if (!text.includes('*')) return text
+  return text.replace(/\*{1,3}(?=\S)([^*\n]+?)(?<=\S)\*{1,3}/g, '$1').replace(/\*+(?=\S)|(?<=\S)\*+/g, '')
 }
 
 function joinParts(parts: (string | undefined | null)[]) {

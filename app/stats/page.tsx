@@ -10,6 +10,7 @@ import StudyTimeChart from '@/components/StudyTimeChart'
 import { fetchStudyTime, formatStudyTime, type StudyTime } from '@/lib/study-time'
 import LevelBadge from '@/components/LevelBadge'
 import ExamBadges from '@/components/ExamBadges'
+import ExamTally from '@/components/ExamTally'
 import Avatar from '@/components/Avatar'
 import { nextAvatarUnlock } from '@/lib/avatars'
 import { levelFor } from '@/lib/levels'
@@ -128,6 +129,9 @@ export default function StatsPage() {
         )}
       </section>
 
+      {/* Exam results: perfect / passed / not passed */}
+      {userId && <ExamTally userId={userId} />}
+
       {/* Per course */}
       {stats.courses.length > 0 && (
         <section className="mb-12">
@@ -224,9 +228,10 @@ export default function StatsPage() {
         <summary className="cursor-pointer text-brand-secondary">How XP and levels work</summary>
         <ul className="mt-3 space-y-1 text-brand-text/85">
           <li>• 50 XP for completing a lesson the first time (20 XP for recaps and orientation lessons)</li>
-          <li>• 1 XP per correct answer (your first 3 attempts at an exam each day)</li>
+          <li>• 1 XP per correct answer on lesson exams, checkpoints and practice exams (your first 3 attempts at each exam in any 24 hours)</li>
           <li>• 100 XP the first time you pass a domain checkpoint</li>
           <li>• 150 XP the first time you pass a practice exam</li>
+          <li>• 100 XP when a friend you invited completes their first lesson, and 100 XP for them too (up to 25 friends)</li>
         </ul>
         <p className="mt-3 text-brand-secondary">
           Levels come from your all-time XP, and each one takes a little more than the last: 🌱 Newcomer (1-4), 🧭 Explorer

@@ -51,6 +51,8 @@ type ExamResult = {
 
 type NextLesson = { id: string; title: string }
 
+type LessonPosition = { index: number; total: number }
+
 type Phase = 'loading' | 'content' | 'exam' | 'results' | 'not-found'
 
 export default function LessonPlayerPage() {
@@ -75,6 +77,7 @@ export default function LessonPlayerPage() {
   // The lesson that follows this one in the course (null if this is the
   // last one), for the "Next lesson" buttons.
   const [nextLesson, setNextLesson] = useState<NextLesson | null>(null)
+  const [position, setPosition] = useState<LessonPosition | null>(null)
 
   const [questions, setQuestions] = useState<ExamQuestion[]>([])
   const [answers, setAnswers] = useState<Record<string, string[]>>({})
@@ -125,7 +128,12 @@ export default function LessonPlayerPage() {
         .then(setNotes)
         .catch(() => setNotes([]))
 
-      if (course?.id) void loadNextLesson(course.id, data.id).then(setNextLesson)
+      if (course?.id) {
+        void loadNextLesson(course.id, data.id).then(({ next, position }) => {
+          setNextLesson(next)
+          setPosition(position)
+        })
+      }
 
       // Same security-definer count the course page uses (question content
       // itself is never readable from the browser).
@@ -461,6 +469,24 @@ export default function LessonPlayerPage() {
 
         {phase === 'content' && lesson.content_blocks.length > 0 && currentBlock && (
           <>
+            {/* Which lesson this is - the header only names the domain. */}
+            <div className="mb-3 flex items-end justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs text-brand-muted">
+                  {lesson.lesson_type === 'recap'
+                    ? 'Domain recap'
+                    : position
+                      ? `Lesson ${position.index} of ${position.total}`
+                      : 'Lesson'}
+                </p>
+                <p className="truncate text-base font-medium text-brand-text sm:text-lg" title={lesson.title}>
+                  {lesson.title}
+                </p>
+              </div>
+              <p className="shrink-0 text-xs tabular-nums text-brand-secondary">
+                Slide {blockIndex + 1} of {lesson.content_blocks.length}
+              </p>
+            </div>
             <div className="flex gap-1.5 mb-8">
               {lesson.content_blocks.map((_, i) => (
                 <div
@@ -862,7 +888,11 @@ function ContentBlockView({ block, nested = false, isOrientation = false }: { bl
 // Finds the lesson after `lessonId` in course order: domains by their order,
 // each domain's lessons by order with its recap last, then any lessons that
 // aren't in a domain - the same order the course page lists them in.
-async function loadNextLesson(courseId: string, lessonId: string): Promise<NextLesson | null> {
+// Also reports where the lesson sits within its domain ("Lesson 3 of 8").
+async function loadNextLesson(
+  courseId: string,
+  lessonId: string,
+): Promise<{ next: NextLesson | null; position: LessonPosition | null }> {
   const [{ data: sections }, { data: lessons }] = await Promise.all([
     supabase.from('sections').select('id, order_index').eq('course_id', courseId),
     supabase
@@ -871,7 +901,7 @@ async function loadNextLesson(courseId: string, lessonId: string): Promise<NextL
       .eq('course_id', courseId)
       .order('order_index'),
   ])
-  if (!lessons) return null
+  if (!lessons) return { next: null, position: null }
 
   const sectionOrder = new Map((sections || []).map((s) => [s.id, s.order_index as number]))
   const rank = (l: { section_id: string | null; lesson_type: string | null; order_index: number }) => [
@@ -887,7 +917,13 @@ async function loadNextLesson(courseId: string, lessonId: string): Promise<NextL
   })
   const i = ordered.findIndex((l) => l.id === lessonId)
   const next = i >= 0 ? ordered[i + 1] : undefined
-  return next ? { id: next.id, title: next.title } : null
+  const current = i >= 0 ? ordered[i] : undefined
+  const siblings = current ? ordered.filter((l) => l.section_id === current.section_id) : []
+  const index = current ? siblings.findIndex((l) => l.id === current.id) : -1
+  return {
+    next: next ? { id: next.id, title: next.title } : null,
+    position: index >= 0 ? { index: index + 1, total: siblings.length } : null,
+  }
 }
 
 function Kbd({ children }: { children: React.ReactNode }) {
